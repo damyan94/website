@@ -1,4 +1,5 @@
 #include "AccountStore.h"
+#include "AccountQueryService.h"
 #include "Crypto.h"
 #include "InputValidation.h"
 #include "stdafx.h"
@@ -200,66 +201,9 @@ Reply AccountStore::Login(const Json::Value& body, const std::string& oldToken)
 
 Reply AccountStore::ListUsers(const std::string& cursor, const UserListQuery& query)
 {
-	const std::string		 columns = "SELECT id,email,display_name,phone,locale,role,enabled,version,"
-									   "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),"
-									   "to_char(last_login_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'),"
-									   "email_verified_at IS NOT NULL FROM accounts.users ";
-	Reply					 reply;
-	std::string				 sql;
-	std::vector<std::string> parameters;
-	int						 limit = 50;
-	if (!query.paginated)
-	{
-		sql		   = columns + "WHERE id>$1::bigint ORDER BY id LIMIT 51";
-		parameters = {cursor.empty() ? "0" : Identifier(cursor)};
-	}
-	else
-	{
-		if (!cursor.empty() || query.page < 1 || query.page > 1000000 || TextLength(query.search) < 0 ||
-			TextLength(query.search) > 100 ||
-			(!query.role.empty() && query.role != "admin" && query.role != "operator" && query.role != "customer") ||
-			(!query.enabled.empty() && query.enabled != "true" && query.enabled != "false") ||
-			(query.order != "asc" && query.order != "desc"))
-			throw RequestError(400, "Invalid user filters or pagination");
-		// Only these fixed column names and directions ever become SQL syntax.
-		const char* sort = query.sort == "createdAt"	 ? "created_at"
-						   : query.sort == "lastLoginAt" ? "last_login_at"
-						   : query.sort == "email"		 ? "email"
-														 : nullptr;
-		if (!sort)
-			throw RequestError(400, "Invalid user sort");
-		const std::string where =
-			"WHERE ($1='' OR strpos(lower(email),lower($1))>0 OR strpos(lower(display_name),lower($1))>0) "
-			"AND ($2='' OR role=$2) AND ($3='' OR enabled=($3='true')) ";
-		parameters			   = {query.search, query.role, query.enabled};
-		const auto count	   = m_Database.Query(("SELECT count(*) FROM accounts.users " + where).c_str(), parameters);
-		const auto total	   = std::stoll(count.Get(0, 0));
-		limit				   = 25;
-		const auto pages	   = std::max(1LL, (total + limit - 1) / limit);
-		const auto page		   = std::min(static_cast<long long>(query.page), pages);
-		reply.body["page"]	   = Json::Int64(page);
-		reply.body["pageSize"] = limit;
-		reply.body["pages"]	   = Json::Int64(pages);
-		reply.body["total"]	   = Json::Int64(total);
-		const std::string direction = query.order == "asc" ? " ASC" : " DESC";
-		sql							= columns + where + "ORDER BY " + sort + direction + " NULLS LAST, id" + direction +
-			  " LIMIT 25 OFFSET $4::bigint";
-		parameters.push_back(std::to_string((page - 1) * limit));
-	}
-	const auto rows		= m_Database.Query(sql.c_str(), parameters);
-	reply.body["users"] = Json::arrayValue;
-	for (int i = 0; i < std::min(rows.Count(), limit); ++i)
-	{
-		auto user			  = User(rows, i);
-		user["createdAt"]	  = rows.Get(i, 8);
-		const auto lastLogin  = rows.Get(i, 9);
-		user["lastLoginAt"]	  = lastLogin.empty() ? Json::Value() : Json::Value(lastLogin);
-		user["emailVerified"] = rows.Get(i, 10) == "t";
-		reply.body["users"].append(std::move(user));
-	}
-	if (!query.paginated)
-		reply.body["nextCursor"] = rows.Count() > limit ? rows.Get(limit - 1, 0) : "";
-	return reply;
+	AccountRepository repository(m_Database);
+	AccountQueryService service(repository, m_Settings.locales);
+	return service.ListUsers(cursor, query);
 }
 
 Reply AccountStore::Handle(Action				action,
@@ -322,22 +266,9 @@ Reply AccountStore::Handle(Action				action,
 
 Reply AccountStore::CurrentProfile(Json::Value user)
 {
-	Reply	   reply;
-	const auto actor		= user["id"].asString();
-	reply.body["csrfToken"] = user["csrfToken"];
-	user.removeMember("csrfToken");
-	const auto email =
-		m_Database.Query("SELECT email_verified_at IS NOT NULL, EXISTS(SELECT 1 FROM accounts.subscriptions "
-						 "WHERE user_id=$1::bigint AND confirmed_at IS NOT NULL AND email=accounts.users.email) "
-						 "FROM accounts.users WHERE id=$1::bigint",
-						 {actor});
-	user["emailVerified"]		 = email.Get(0, 0) == "t";
-	user["newsletterSubscribed"] = email.Get(0, 1) == "t";
-	reply.body["user"]			 = user;
-	reply.body["locales"]		 = Json::arrayValue;
-	for (const auto& locale : m_Settings.locales)
-		reply.body["locales"].append(locale);
-	return reply;
+	AccountRepository repository(m_Database);
+	AccountQueryService service(repository, m_Settings.locales);
+	return service.CurrentProfile(std::move(user));
 }
 
 Reply AccountStore::UpdateProfile(const Json::Value& body, const std::string& actor)
