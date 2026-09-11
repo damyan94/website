@@ -81,6 +81,11 @@ public:
 	void DeleteSession(const std::string& tokenHash);
 	void DeleteUserSessions(const std::string& user);
 
+	std::string PasswordHash(const std::string& user);
+	void UpdatePassword(const std::string& user, const std::string& passwordHash);
+
+	std::optional<std::string> ResetPasswordByEmail(const std::string& email, const std::string& passwordHash);
+
 private:
 	Database& m_Database;
 };

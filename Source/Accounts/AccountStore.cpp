@@ -2,6 +2,7 @@
 #include "AccountQueryService.h"
 #include "AccountWriteService.h"
 #include "SessionService.h"
+#include "PasswordService.h"
 #include "Crypto.h"
 #include "stdafx.h"
 
@@ -21,11 +22,6 @@ std::string Field(const Json::Value& body, const char* key, int minimum, int max
 	if (length < minimum || length > maximum)
 		throw RequestError(400, "Text field length or encoding is invalid");
 	return value;
-}
-
-std::string Password(const Json::Value& body, const char* field)
-{
-	return Field(body, field, 15, 128);
 }
 
 Json::Value User(const Rows& rows, int row)
@@ -244,20 +240,10 @@ Reply AccountStore::UpdateProfile(const Json::Value& body, const std::string& ac
 
 Reply AccountStore::ChangePassword(const Json::Value& body, const std::string& actor)
 {
-	Reply reply;
-	RequireFields(body, {"currentPassword", "newPassword"});
-	const auto old = m_Database.Query("SELECT password_hash FROM accounts.users WHERE id=$1::bigint", {actor});
-	if (!VerifyPassword(Field(body, "currentPassword", 1, 128), old.Get(0, 0)))
-		throw RequestError(403, "Current password is incorrect");
-	const auto encoded = HashPassword(Password(body, "newPassword"));
-	m_Database.Query("UPDATE accounts.users SET "
-					 "password_hash=$1,credential_version=credential_version+1,version=version+1,updated_at=now() "
-					 "WHERE id=$2::bigint",
-					 {encoded, actor});
-	RevokeSessions(actor);
-	Audit(actor, actor, "password.changed");
-	reply.clearCookie = true;
-	return reply;
+	AccountRepository repository(m_Database);
+	SessionService sessions(repository, m_Settings.idleSeconds);
+	PasswordService service(repository, sessions);
+	return service.ChangePassword(body, actor);
 }
 
 Reply AccountStore::CreateUser(const Json::Value& body, const std::string& actor)
@@ -358,20 +344,14 @@ void AccountStore::Bootstrap(const std::string& email, const std::string& passwo
 
 void AccountStore::ResetPassword(const std::string& email, const std::string& password)
 {
-	const auto normalized = NormalizedEmail(email);
-	if (!ValidPassword(password))
-		throw RequestError(400, "Password must contain 15 to 128 characters without control characters");
-	const auto	encoded = HashPassword(password);
+	// Keep validation and hashing outside the owner-reset transaction.
+	const auto reset = PasswordService::PrepareOwnerReset(email, password);
 	Transaction transaction(m_Database);
 	m_Database.Query("SELECT pg_advisory_xact_lock(70123002)");
-	const auto rows = m_Database.Query("UPDATE accounts.users SET "
-									   "password_hash=$1,credential_version=credential_version+1,version=version+1,"
-									   "updated_at=now() WHERE email=$2 RETURNING id",
-									   {encoded, normalized});
-	if (!rows.Count())
-		throw RequestError(404, "Account not found");
-	RevokeSessions(rows.Get(0, 0));
-	Audit("", rows.Get(0, 0), "password.reset_by_owner");
+	AccountRepository repository(m_Database);
+	SessionService sessions(repository, m_Settings.idleSeconds);
+	PasswordService service(repository, sessions);
+	service.ResetByOwner(reset);
 	transaction.Commit();
 }
 } // namespace Accounts

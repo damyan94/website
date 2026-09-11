@@ -638,8 +638,37 @@ def main():
                 print('PASS: profile/admin write versioning, stale-write rollback, audit, validation ordering and access invalidation', flush=True)
                 copy = Client(); copy.login('customer2@example.test',other_password)
                 new_password = secrets.token_urlsafe(24)
-                customer.request('/api/v1/me/password','POST',{'currentPassword':'not the right password','newPassword':new_password},expected=403)
-                customer.request('/api/v1/me/password','POST',{'currentPassword':other_password,'newPassword':new_password})
+                password_query = "SELECT password_hash,version,credential_version,updated_at FROM accounts.users WHERE id=" + ids['customer']
+                password_sessions_query = "SELECT * FROM accounts.sessions WHERE user_id=" + ids['customer'] + " ORDER BY token_hash"
+                password_audit_query = "SELECT count(*) FROM accounts.audit WHERE subject_id=" + ids['customer'] + " AND action='password.changed'"
+                before_password = sql(password_query)
+                before_password_sessions = sql(password_sessions_query)
+                password_audits = int(sql(password_audit_query))
+                password_cookie = customer.cookie
+                for body, status, error in [
+                    ({'currentPassword':'wrong','newPassword':False,'extra':True},400,'Unexpected or missing fields'),
+                    ({'currentPassword':False,'newPassword':'short'},400,'Invalid text field'),
+                    ({'currentPassword':'not the right password','newPassword':False},403,'Current password is incorrect'),
+                    ({'currentPassword':'not the right password','newPassword':new_password},403,'Current password is incorrect'),
+                    ({'currentPassword':other_password,'newPassword':False},400,'Invalid text field'),
+                    ({'currentPassword':other_password,'newPassword':'short'},400,'Text field length or encoding is invalid'),
+                    ({'currentPassword':other_password,'newPassword':'a'*15+'\x7f'},400,'Text field length or encoding is invalid'),
+                ]:
+                    rejected, _ = customer.request('/api/v1/me/password','POST',body,expected=status)
+                    assert rejected == {'error':error} and customer.cookie == password_cookie
+                    assert sql(password_query) == before_password
+                    assert sql(password_sessions_query) == before_password_sessions
+                    assert int(sql(password_audit_query)) == password_audits
+                old_hash, old_version, old_credential, _ = before_password.split('|')
+                changed, _ = customer.request('/api/v1/me/password','POST',{'currentPassword':other_password,'newPassword':new_password})
+                assert changed == {} and customer.cookie == ''
+                changed_hash, changed_version, changed_credential, _ = sql(password_query).split('|')
+                assert changed_hash != old_hash and changed_hash.startswith('$argon2id$v=19$m=19456,t=2,p=1$')
+                assert int(changed_version) == int(old_version) + 1 and int(changed_credential) == int(old_credential) + 1
+                assert sql(password_sessions_query) == ''
+                assert int(sql(password_audit_query)) == password_audits + 1
+                assert sql("SELECT actor_id FROM accounts.audit WHERE subject_id=" + ids['customer'] + " AND action='password.changed' ORDER BY id DESC LIMIT 1") == ids['customer']
+                print('PASS: password validation ordering, rejected-change rollback, versioning, audit and cookie clearing', flush=True)
                 customer.request('/api/v1/me',expected=401)
                 copy.request('/api/v1/me',expected=401)
                 customer.login('customer2@example.test',other_password,expected=401)
@@ -664,8 +693,35 @@ def main():
                 customer.login('customer2@example.test',new_password)
                 sql("UPDATE accounts.sessions SET expires_at=now()-interval '1 second' WHERE user_id="+ids['customer'])
                 customer.request('/api/v1/me',expected=401)
-                command(config,'--reset-account-password=customer2@example.test',other_password)
+                # Owner reset must revoke active devices too, not just the expired session above.
+                customer.login('customer2@example.test',new_password)
+                copy.login('customer2@example.test',new_password)
+                before_reset = sql(password_query)
+                before_reset_sessions = sql(password_sessions_query)
+                reset_audit_query = "SELECT count(*) FROM accounts.audit WHERE action='password.reset_by_owner'"
+                reset_audits = int(sql(reset_audit_query))
+                for email, candidate, error in [
+                    ('invalid','short','Invalid email address'),
+                    ('customer2@example.test','short','Password must contain 15 to 128 characters without control characters'),
+                    ('missing-reset@example.test','short','Password must contain 15 to 128 characters without control characters'),
+                    ('missing-reset@example.test',other_password,'Account not found'),
+                ]:
+                    log_start = (work / 'process.log').stat().st_size
+                    command(config,'--reset-account-password=' + email,candidate,success=False)
+                    assert error in (work / 'process.log').read_bytes()[log_start:].decode()
+                    assert sql(password_query) == before_reset and sql(password_sessions_query) == before_reset_sessions
+                    assert int(sql(reset_audit_query)) == reset_audits
+                assert sql("SELECT count(*) FROM accounts.sessions WHERE user_id=" + ids['customer']) == '2'
+                command(config,'--reset-account-password=CUSTOMER2@EXAMPLE.TEST',other_password)
+                reset_hash, reset_version, reset_credential, _ = sql(password_query).split('|')
+                assert reset_hash != changed_hash and reset_hash.startswith('$argon2id$v=19$m=19456,t=2,p=1$')
+                assert int(reset_version) == int(changed_version) + 1 and int(reset_credential) == int(changed_credential) + 1
+                assert sql(password_sessions_query) == '' and int(sql(reset_audit_query)) == reset_audits + 1
+                assert sql("SELECT actor_id IS NULL FROM accounts.audit WHERE subject_id=" + ids['customer'] + " AND action='password.reset_by_owner' ORDER BY id DESC LIMIT 1") == 't'
+                customer.request('/api/v1/me',expected=401)
+                copy.request('/api/v1/me',expected=401)
                 customer.login('customer2@example.test',other_password)
+                print('PASS: owner-reset validation ordering, missing accounts, normalized email, versioning, audit and active-device revocation', flush=True)
                 print('PASS: disabling, self-admin protection, password verification, all-device revocation, logout, idle/absolute expiry and owner recovery', flush=True)
 
                 for path in ['/admin','/profile','/accounts-assets/admin.js','/accounts-assets/api.js','/accounts-assets/public-account.js','/accounts-assets/admin.css']:

@@ -169,4 +169,30 @@ void AccountRepository::DeleteUserSessions(const std::string& user)
 {
 	m_Database.Query("DELETE FROM accounts.sessions WHERE user_id=$1::bigint", {user});
 }
+
+std::string AccountRepository::PasswordHash(const std::string& user)
+{
+	const auto rows = m_Database.Query("SELECT password_hash FROM accounts.users WHERE id=$1::bigint", {user});
+	return rows.Get(0, 0);
+}
+
+void AccountRepository::UpdatePassword(const std::string& user, const std::string& passwordHash)
+{
+	m_Database.Query("UPDATE accounts.users SET "
+					 "password_hash=$1,credential_version=credential_version+1,version=version+1,updated_at=now() "
+					 "WHERE id=$2::bigint",
+					 {passwordHash, user});
+}
+
+std::optional<std::string> AccountRepository::ResetPasswordByEmail(const std::string& email,
+																 const std::string& passwordHash)
+{
+	const auto rows = m_Database.Query("UPDATE accounts.users SET "
+									   "password_hash=$1,credential_version=credential_version+1,version=version+1,"
+									   "updated_at=now() WHERE email=$2 RETURNING id",
+									   {passwordHash, email});
+	if (!rows.Count())
+		return std::nullopt;
+	return rows.Get(0, 0);
+}
 } // namespace Accounts
