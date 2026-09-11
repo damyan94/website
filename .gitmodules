@@ -1,0 +1,3 @@
+[submodule "Dependencies/FelisFramework"]
+	path = Dependencies/FelisFramework
+	url = https://github.com/damyan94/FelisFramework

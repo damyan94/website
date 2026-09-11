@@ -1,0 +1,182 @@
+{
+  "listeners": [
+    {
+      "address": "127.0.0.1",
+      "port": 8082,
+      "https": false
+    }
+  ],
+  "app": {
+    "number_of_threads": 1,
+    "enable_session": false,
+    "document_root": "../Public",
+    "home_page": "index.html",
+    "upload_path": "../Runtime/Uploads",
+    "file_types": [
+      "html",
+      "css",
+      "js",
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "svg",
+      "webp",
+      "ico",
+      "woff",
+      "woff2"
+    ],
+    "static_files_cache_time": -1,
+    "client_max_body_size": "1M",
+    "client_max_memory_body_size": "64K",
+    "idle_connection_timeout": 60,
+    "run_as_daemon": false,
+    "relaunch_on_error": false,
+    "handle_sig_term": true,
+    "log": {
+      "log_level": "INFO",
+      "log_path": ""
+    }
+  },
+  "custom_config": {
+    "public_content_file": "../Content/site.json",
+    "content_editor": {
+      "enabled": true,
+      "backups_directory": "../Runtime/ContentBackups",
+      "currencies": [
+        "EUR"
+      ]
+    },
+    "accounts": {
+      "enabled": true,
+      "database_url_env": "ALOHA_DATABASE_URL",
+      "public_origin": "http://127.0.0.1:8082",
+      "allow_insecure_loopback": true,
+      "ui_root": "../../../Admin",
+      "schema_file": "../../../Migrations/001_accounts.sql",
+      "customer_email": {
+        "enabled": true,
+        "registration_enabled": true,
+        "newsletters_enabled": true,
+        "transport": "local_outbox",
+        "outbox_directory": "../Runtime/Email",
+        "sender": "no-reply@example.test",
+        "footer": "Aloha Massage · +359 879 925 093 · Newsletter / Бюлетин"
+      },
+      "idle_seconds": 3600,
+      "absolute_seconds": 43200,
+      "locales": [
+        "bg",
+        "en"
+      ],
+      "ui": {
+        "site_name": "Aloha Massage",
+        "default_locale": "bg",
+        "support_text": {
+          "bg": "За помощ с профила се свържете със студиото: +359 879 925 093.",
+          "en": "For account help, contact the studio: +359 879 925 093."
+        }
+      }
+    },
+    "reservations": {
+      "enabled": true,
+      "schema_file": "../../../Migrations/Reservations/001_reservations.sql",
+      "timezone": "Europe/Sofia",
+      "slot_minutes": 15,
+      "lead_minutes": 120,
+      "horizon_days": 90,
+      "cancel_hours": 24,
+      "reminders_enabled": true,
+      "reminder_hours": 24,
+      "max_future_per_customer": 10,
+      "business_hours": [
+        {
+          "days": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "start": "11:00",
+          "end": "20:00"
+        }
+      ],
+      "resources": [
+        {
+          "id": "demo-therapist",
+          "kind": "therapist",
+          "name": {
+            "bg": "Демо терапевт",
+            "en": "Demo therapist"
+          },
+          "hours": [
+            {
+              "days": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "start": "11:00",
+              "end": "20:00"
+            }
+          ]
+        },
+        {
+          "id": "demo-room",
+          "kind": "room",
+          "name": {
+            "bg": "Демо стая",
+            "en": "Demo room"
+          },
+          "hours": [
+            {
+              "days": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "start": "11:00",
+              "end": "20:00"
+            }
+          ]
+        }
+      ],
+      "services": [
+        {
+          "id": "relax",
+          "therapists": [
+            "demo-therapist"
+          ],
+          "rooms": [
+            "demo-room"
+          ],
+          "buffer_before": 0,
+          "buffer_after": 15
+        },
+        {
+          "id": "deep-tissue",
+          "therapists": [
+            "demo-therapist"
+          ],
+          "rooms": [
+            "demo-room"
+          ],
+          "buffer_before": 0,
+          "buffer_after": 15
+        }
+      ],
+      "closures": []
+    }
+  }
+}

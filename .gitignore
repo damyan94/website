@@ -1,0 +1,40 @@
+# Out-of-source builds and local CMake settings.
+/Build/
+/build/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/Testing/
+/compile_commands.json
+/CMakeUserPresets.json
+
+# Private application data, email outboxes and backups, including per-site data.
+Runtime/
+Backups/
+backups/
+*.dump
+*.sql.gz
+
+# Local secrets; credential-free examples may be committed.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+
+# Generated logs, Python caches and service-editor lock files.
+Logs/
+*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.editor.lock
+
+# Editor/OS temporary files.
+*~
+*.swp
+*.swo
+.DS_Store

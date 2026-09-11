@@ -1,0 +1,1276 @@
+{
+  "presentation": {
+    "images": {
+      "logo": "/assets/logo.png",
+      "ornament": "/assets/flower.png",
+      "hero": "/assets/hero.jpg",
+      "pageHeader": "/assets/page-header.jpg",
+      "sectionBackground": "/assets/floral-light.jpg",
+      "footerBackground": "/assets/footer.jpg"
+    },
+    "featuredImage": {
+      "alt": {
+        "bg": "Масажна стая в студио Алоха",
+        "en": "A massage room at Aloha studio"
+      },
+      "src": "/assets/studio-lomi.jpg"
+    },
+    "voucherImage": {
+      "alt": {
+        "bg": "Кът за релакс в студио Алоха",
+        "en": "Relaxation corner at Aloha studio"
+      },
+      "src": "/assets/studio-relax.jpg"
+    },
+    "languageNames": {
+      "bg": "Български",
+      "en": "English"
+    },
+    "formatLocales": {
+      "bg": "bg-BG",
+      "en": "en-IE"
+    },
+    "socialLinks": [
+      {
+        "id": "facebook",
+        "label": "Facebook",
+        "icon": "/assets/facebook.png"
+      },
+      {
+        "id": "instagram",
+        "label": "Instagram",
+        "icon": "/assets/instagram.png"
+      },
+      {
+        "id": "whatsapp",
+        "label": "WhatsApp",
+        "icon": "/assets/whatsapp.png"
+      },
+      {
+        "id": "messenger",
+        "label": "Messenger",
+        "icon": "/assets/messenger.png"
+      }
+    ]
+  },
+  "bookingDetails" : 
+  [
+    {
+      "description" : 
+      {
+        "bg" : "Разгледайте менюто и продължителностите. Ако не сте сигурни коя сесия е подходяща, обадете ни се.",
+        "en" : "Browse the menu and durations. If you are unsure which session to choose, call us."
+      },
+      "title" : 
+      {
+        "bg" : "Изберете своя масаж",
+        "en" : "Choose your massage"
+      }
+    },
+    {
+      "description" : 
+      {
+        "bg" : "Онлайн резервациите се потвърждават в календара на Fresha. За масаж за двама, четири ръце и специализирани сесии ни се обадете.",
+        "en" : "Online bookings are confirmed in the Fresha calendar. Call us for couples, four-hands and specialist sessions."
+      },
+      "title" : 
+      {
+        "bg" : "Запазете удобен час",
+        "en" : "Find a convenient time"
+      }
+    },
+    {
+      "description" : 
+      {
+        "bg" : "За промяна на часа се свържете със студиото или използвайте потвърждението от Fresha. Ако имате ваучер, съобщете това при записването.",
+        "en" : "To change an appointment, contact the studio or use your Fresha confirmation. If you have a voucher, mention it when booking."
+      },
+      "title" : 
+      {
+        "bg" : "Промяна или ваучер",
+        "en" : "Changes or vouchers"
+      }
+    }
+  ],
+  "business" : 
+  {
+    "address" : 
+    {
+      "bg" : "ул. „Димитър Манов“ 23, Иван Вазов, София",
+      "en" : "23 Dimitar Manov St, Ivan Vazov, Sofia"
+    },
+    "bookingUrl" : "https://bg.fresha.com/a/masazhi-sofiya-aloha-massage-sofia-aloha-sofiya-ulica-dimitr-manov-23-x8qzd0bl",
+    "hours" : 
+    {
+      "bg" : "Всеки ден, 11:00–20:00",
+      "en" : "Every day, 11:00–20:00"
+    },
+    "mapUrl" : "https://goo.gl/maps/CvKbV8WSpbvgyhjb7",
+    "name" : 
+    {
+      "bg" : "Алоха Масажи България",
+      "en" : "Aloha Massage Bulgaria"
+    },
+    "phone" : "+359879925093",
+    "phoneDisplay" : "+359 879 925 093",
+    "social" : 
+    {
+      "facebook" : "https://www.facebook.com/Massagesofia.alohabulgaria",
+      "instagram" : "https://www.instagram.com/alohamassagebulgaria/",
+      "messenger" : "https://m.me/Massagesofia.alohabulgaria",
+      "whatsapp" : "https://api.whatsapp.com/send?phone=359879925093"
+    },
+    "timeZone" : "Europe/Sofia",
+    "voucherUrl" : "https://www.alohamassage.bg/ваучер-за-масаж/"
+  },
+  "categories" : 
+  [
+    {
+      "id" : "classic",
+      "title" : 
+      {
+        "bg" : "Класически масажи",
+        "en" : "Classic massages"
+      }
+    },
+    {
+      "id" : "wellness",
+      "title" : 
+      {
+        "bg" : "Лукс и уелнес",
+        "en" : "Luxury & wellness"
+      }
+    },
+    {
+      "id" : "face",
+      "title" : 
+      {
+        "bg" : "Масажи на лице",
+        "en" : "Facial massage"
+      }
+    },
+    {
+      "id" : "care",
+      "title" : 
+      {
+        "bg" : "Специализирана грижа",
+        "en" : "Specialist care"
+      }
+    },
+    {
+      "id" : "beauty",
+      "title" : 
+      {
+        "bg" : "Козметика и мигли",
+        "en" : "Beauty & lashes"
+      }
+    },
+    {
+      "id" : "rituals",
+      "title" : 
+      {
+        "bg" : "Комбинирани ритуали",
+        "en" : "Combined rituals"
+      }
+    }
+  ],
+  "courses" : 
+  [
+    {
+      "currency" : "EUR",
+      "description" : 
+      {
+        "bg" : "Практическо обучение в София в малки групи от двама до трима участници. Интензивната програма и часовете се уточняват с преподавателя.",
+        "en" : "Practical training in Sofia in small groups of two to three. Arrange the intensive programme and timetable with the instructor."
+      },
+      "details" : 
+      [
+        {
+          "bg" : "За участници на 19 и повече години със завършено средно образование.",
+          "en" : "For participants aged 19 or over with completed secondary education."
+        },
+        {
+          "bg" : "Обсъдете програмата, практиката, документите за завършване и евентуални допълнителни такси преди записване.",
+          "en" : "Discuss the programme, practical sessions, completion documents and any additional fees before enrolling."
+        },
+        {
+          "bg" : "Възможностите за последваща практика и стаж се уточняват индивидуално.",
+          "en" : "Further practice and internship opportunities are discussed individually."
+        }
+      ],
+      "id" : "professional",
+      "priceMinor" : 80000,
+      "title" : 
+      {
+        "bg" : "Базов курс по класически масаж",
+        "en" : "Basic classical massage course"
+      }
+    },
+    {
+      "currency" : "EUR",
+      "description" : 
+      {
+        "bg" : "Практически занимания за двойки, приятели и малки групи. Основни техники за глава, врат, рамене и ходила, разтягане и безопасно прилагане у дома.",
+        "en" : "Practical sessions for couples, friends and small groups. Basic techniques for the head, neck, shoulders and feet, stretching and safe use at home."
+      },
+      "details" : 
+      [
+        {
+          "bg" : "Занимания през почивните дни, обичайно 10:00–13:00, с предварителна уговорка.",
+          "en" : "Weekend sessions, usually 10:00–13:00, by prior arrangement."
+        },
+        {
+          "bg" : "Носете удобни дрехи и чехли. Можете да си водите записки; не се правят видеозаписи.",
+          "en" : "Bring comfortable clothes and slippers. You may take notes; video recording is not allowed."
+        },
+        {
+          "bg" : "Цената зависи от броя участници. Уточнете датата, депозита и условията за отказ по телефон.",
+          "en" : "Price depends on group size. Confirm the date, deposit and cancellation terms by phone."
+        }
+      ],
+      "id" : "home",
+      "priceMinor" : null,
+      "title" : 
+      {
+        "bg" : "Домашен масаж и самомасаж",
+        "en" : "Home massage and self-massage"
+      }
+    }
+  ],
+  "defaultLocale" : "bg",
+  "gallery" : 
+  [
+    {
+      "alt" : 
+      {
+        "bg" : "Масажна стая в студио Алоха",
+        "en" : "A massage room at Aloha studio"
+      },
+      "src" : "/assets/studio-lomi.jpg"
+    },
+    {
+      "alt" : 
+      {
+        "bg" : "Кът за релакс в студио Алоха",
+        "en" : "Relaxation corner at Aloha studio"
+      },
+      "src" : "/assets/studio-relax.jpg"
+    },
+    {
+      "alt" : 
+      {
+        "bg" : "Интериор на студио Алоха",
+        "en" : "Inside Aloha studio"
+      },
+      "src" : "/assets/studio-room.jpg"
+    }
+  ],
+  "locales" : 
+  [
+    "bg",
+    "en"
+  ],
+  "promotions" : 
+  [
+    {
+      "description" : 
+      {
+        "bg" : "Предплатен пакет с валидност 6 месеца. Предлага се по преценка на терапевта; дълбокотъканният масаж е с отделни условия. Попитайте за подходящ пакет.",
+        "en" : "A prepaid package valid for six months, offered at the therapist’s discretion. Separate terms apply to deep tissue massage. Ask about a suitable package."
+      },
+      "endsAt" : "2026-10-01T00:00:00+03:00",
+      "id" : "summer-2026",
+      "startsAt" : "2026-04-01T00:00:00+03:00",
+      "title" : 
+      {
+        "bg" : "Лято 2026 · Пакет 5 + 1 подарък",
+        "en" : "Summer 2026 · Buy 5, receive 1 as a gift"
+      },
+      "url" : "tel:+359879925093"
+    }
+  ],
+  "schemaVersion" : 1,
+  "services" : 
+  [
+    {
+      "available" : true,
+      "bookingUrl" : "https://bg.fresha.com/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A10341219&pId=561365",
+      "category" : "classic",
+      "description" : 
+      {
+        "bg" : "Масаж с умерен натиск. Изберете кратка сесия или отделете повече време за цялото тяло.",
+        "en" : "A massage with moderate pressure. Choose a shorter session or take more time for the whole body."
+      },
+      "id" : "relax",
+      "title" : 
+      {
+        "bg" : "Релакс масаж „Вълшебни ръце“",
+        "en" : "Magic Hands relaxation massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 4000
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 5500
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 90,
+          "priceMinor" : 8500
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 120,
+          "priceMinor" : 11000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://bg.fresha.com/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A8719941&pId=561365",
+      "category" : "classic",
+      "description" : 
+      {
+        "bg" : "По-силен натиск и разтягания. Обсъдете с терапевта предпочитаните зони и интензивността на масажа.",
+        "en" : "Firmer pressure and stretching. Discuss your preferred areas and massage intensity with the therapist."
+      },
+      "id" : "deep-tissue",
+      "title" : 
+      {
+        "bg" : "Дълбокотъканен масаж",
+        "en" : "Deep tissue massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 4500
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 7000
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 90,
+          "priceMinor" : 10500
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 120,
+          "priceMinor" : 14000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://www.fresha.com/bg/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A10331973&pId=561365",
+      "category" : "classic",
+      "description" : 
+      {
+        "bg" : "Самостоятелна сесия за глава и лице. За добавяне към друг масаж се свържете със студиото.",
+        "en" : "A standalone head and face session. Contact the studio to add it to another massage."
+      },
+      "id" : "head",
+      "title" : 
+      {
+        "bg" : "Антистрес масаж на глава",
+        "en" : "Anti-stress head massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 3000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://www.fresha.com/bg/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A9199016&pId=561365",
+      "category" : "classic",
+      "description" : 
+      {
+        "bg" : "Масаж на ходила, глезени и пръсти с разтягания и рефлексология.",
+        "en" : "Massage of the feet, ankles and toes, with stretching and reflexology."
+      },
+      "id" : "feet",
+      "title" : 
+      {
+        "bg" : "Масаж на ходила",
+        "en" : "Foot massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 15,
+          "priceMinor" : 1500
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 3000
+        },
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 50,
+          "priceMinor" : 4000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://bg.fresha.com/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A8719640&pId=561365",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Плавни, ритмични движения с предмишниците, вдъхновени от хавайската традиция.",
+        "en" : "Flowing, rhythmic forearm movements inspired by the Hawaiian tradition."
+      },
+      "id" : "lomi-lomi",
+      "title" : 
+      {
+        "bg" : "Хавайски масаж Алоха · Ломи-Ломи",
+        "en" : "Aloha Hawaiian massage · Lomi Lomi"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 80,
+          "priceMinor" : 7000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://bg.fresha.com/a/masazhi-sofiya-aloha-massage-sofia-aloha-sofiya-ulica-dimitr-manov-23-x8qzd0bl",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "60 минути масаж на тялото и 15 минути масаж на главата. Актуалната цена ще намерите при резервация.",
+        "en" : "A 60-minute body massage and a 15-minute head massage. See the booking page for the current price."
+      },
+      "id" : "spa-relax",
+      "title" : 
+      {
+        "bg" : "СПА релакс и антистрес",
+        "en" : "Spa relaxation & anti-stress"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 75,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Двама терапевти, две кушетки, една стая. Резервацията се уговаря предварително по телефона.",
+        "en" : "Two therapists, two massage tables, one room. Please arrange your appointment by phone."
+      },
+      "id" : "couples",
+      "title" : 
+      {
+        "bg" : "Ин и Ян · Масаж за двама",
+        "en" : "Yin & Yang · Couples massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 75,
+          "priceMinor" : 13000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Двама терапевти работят в синхрон. Резервацията се уговаря предварително по телефона.",
+        "en" : "Two therapists working in harmony. Please arrange your appointment by phone."
+      },
+      "id" : "four-hands",
+      "title" : 
+      {
+        "bg" : "Кралски масаж на четири ръце",
+        "en" : "Royal four-hands massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 11000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://www.fresha.com/bg/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A12108381&pId=561365",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Масаж с топло ароматно масло или балсам от специална масажна свещ.",
+        "en" : "A massage with warm aromatic oil or balm from a special massage candle."
+      },
+      "id" : "aroma",
+      "title" : 
+      {
+        "bg" : "Топъл арома-балсамов масаж",
+        "en" : "Warm aroma balm massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 6500
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://www.fresha.com/bg/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&oiid=sv%3A12108472&pId=561365",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Ръчен масаж, съчетан с топли вулканични камъни.",
+        "en" : "A hands-on massage combined with warm volcanic stones."
+      },
+      "id" : "hot-stone",
+      "title" : 
+      {
+        "bg" : "Масаж с топли камъни",
+        "en" : "Hot stone massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 6500
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://bg.fresha.com/a/masazhi-sofiya-aloha-massage-sofia-aloha-sofiya-ulica-dimitr-manov-23-x8qzd0bl",
+      "category" : "face",
+      "description" : 
+      {
+        "bg" : "Сесия за лице с Диляна. За подробности и свободни часове се свържете със студиото.",
+        "en" : "A facial session with Dilyana. Contact the studio for details and availability."
+      },
+      "id" : "kobido",
+      "title" : 
+      {
+        "bg" : "Кобидо · Японски масаж на лице",
+        "en" : "Kobido · Japanese facial massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 6500
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "https://www.fresha.com/bg/book-now/studio-za-masazhi-aloha-naayc6hm/services?lid=599522&eid=1879380&oiid=sv%3A12379903&pId=561365",
+      "category" : "face",
+      "description" : 
+      {
+        "bg" : "Мануална сесия за лице. За избора на подходяща процедура разговаряйте с терапевта.",
+        "en" : "A manual facial session. Speak with the therapist about choosing a suitable treatment."
+      },
+      "id" : "osteo-aesthetics",
+      "title" : 
+      {
+        "bg" : "Остеоестетика с Диляна",
+        "en" : "Osteo-aesthetics with Dilyana"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 90,
+          "priceMinor" : 8000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Грижа и масаж за краката след натоварен ден.",
+        "en" : "Care and massage for your feet after a busy day."
+      },
+      "id" : "tired-feet",
+      "title" : 
+      {
+        "bg" : "СПА за уморени крака",
+        "en" : "Spa for tired feet"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 45,
+          "priceMinor" : 4500
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "Сесия с присъствие на родител. Уточнете предварително подходящия масаж с терапевта.",
+        "en" : "A session with a parent present. Discuss a suitable massage with the therapist before booking."
+      },
+      "id" : "children",
+      "title" : 
+      {
+        "bg" : "Масаж за деца до 12 години",
+        "en" : "Massage for children under 12"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 2000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "face",
+      "description" : 
+      {
+        "bg" : "Нежна грижа за лицето. Попитайте за актуалната цена при записване.",
+        "en" : "Gentle facial care. Ask for the current price when booking."
+      },
+      "id" : "facial-refresh",
+      "title" : 
+      {
+        "bg" : "Освежаващ масаж на лице",
+        "en" : "Refreshing facial massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 45,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "beauty",
+      "description" : 
+      {
+        "bg" : "Козметична процедура с продукти Bioline, подбрана след консултация.",
+        "en" : "A cosmetic treatment with Bioline products, selected after a consultation."
+      },
+      "id" : "bioline-men",
+      "title" : 
+      {
+        "bg" : "Мъжка козметична грижа Bioline",
+        "en" : "Bioline facial care for men"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "beauty",
+      "description" : 
+      {
+        "bg" : "Козметична грижа за лице. Обсъдете продуктите и подходящата процедура с козметика.",
+        "en" : "Facial cosmetic care. Discuss the products and a suitable treatment with the beautician."
+      },
+      "id" : "bioline-exosomes",
+      "title" : 
+      {
+        "bg" : "Козметична грижа Bioline с екзозоми",
+        "en" : "Bioline cosmetic care with exosomes"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 7000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "Индивидуална сесия или програма след разговор с терапевта.",
+        "en" : "An individual session or a programme arranged with the therapist."
+      },
+      "id" : "body-firming",
+      "title" : 
+      {
+        "bg" : "Стягащ масаж на тяло",
+        "en" : "Body firming massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 6000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "Продължителността и условията на програмата се уточняват индивидуално с терапевта.",
+        "en" : "The duration and programme terms are agreed individually with the therapist."
+      },
+      "id" : "lymphatic",
+      "title" : 
+      {
+        "bg" : "Лимфодренажен масаж",
+        "en" : "Lymphatic drainage massage"
+      },
+      "variants" : []
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "Индивидуална сесия със Стефан. Обадете се за консултация и свободни часове.",
+        "en" : "An individual session with Stefan. Call for a consultation and availability."
+      },
+      "id" : "stefan-massage",
+      "title" : 
+      {
+        "bg" : "Терапевтичен масаж със Стефан",
+        "en" : "Therapeutic massage with Stefan"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 7000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "Спокойна сесия с предварително записване по телефон.",
+        "en" : "A quiet session arranged in advance by phone."
+      },
+      "id" : "reiki",
+      "title" : 
+      {
+        "bg" : "Рейки със Стефан",
+        "en" : "Reiki with Stefan"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 4000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "За бременни, бебета и специализирани сесии се свържете предварително с Яна за подходяща грижа.",
+        "en" : "For pregnancy, babies and specialist sessions, contact Yana in advance to discuss suitable care."
+      },
+      "id" : "yana-massage",
+      "title" : 
+      {
+        "bg" : "Масаж с Яна",
+        "en" : "Massage with Yana"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 60,
+          "priceMinor" : 7000
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "wellness",
+      "description" : 
+      {
+        "bg" : "Масаж с мед. Не е подходящ при алергия към мед или пчелни продукти.",
+        "en" : "A massage using honey. Not suitable for people allergic to honey or bee products."
+      },
+      "id" : "honey",
+      "title" : 
+      {
+        "bg" : "Меден масаж на гръб",
+        "en" : "Honey back massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : 4500
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "beauty",
+      "description" : 
+      {
+        "bg" : "Класически и 3D мигли, поставяне и поддръжка. Уточнете вида, времето и цената с Мария.",
+        "en" : "Classic and 3D lashes, application and maintenance. Confirm the style, duration and price with Maria."
+      },
+      "id" : "lashes",
+      "title" : 
+      {
+        "bg" : "Миглопластика с Мария",
+        "en" : "Lash extensions with Maria"
+      },
+      "variants" : []
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "rituals",
+      "description" : 
+      {
+        "bg" : "Комбинация от масаж на гръб и грижа за лице. Уточнете актуалните условия по телефон.",
+        "en" : "A combination of back massage and facial care. Call to confirm current terms."
+      },
+      "id" : "harmony",
+      "title" : 
+      {
+        "bg" : "Хармония 4 в 1",
+        "en" : "Harmony 4 in 1"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 75,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "rituals",
+      "description" : 
+      {
+        "bg" : "По-дълъг комбиниран ритуал за тяло и лице. Изберете детайлите с терапевта.",
+        "en" : "A longer combined body and facial ritual. Arrange the details with the therapist."
+      },
+      "id" : "beauty-bliss",
+      "title" : 
+      {
+        "bg" : "Блаженство и красота",
+        "en" : "Beauty and bliss"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 105,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "rituals",
+      "description" : 
+      {
+        "bg" : "Ароматен ритуал за тяло с предварително уточняване на продуктите и цената.",
+        "en" : "An aromatic body ritual; confirm the products and price before booking."
+      },
+      "id" : "chocolate",
+      "title" : 
+      {
+        "bg" : "Шоколадова терапия",
+        "en" : "Chocolate therapy"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 90,
+          "priceMinor" : null
+        }
+      ]
+    },
+    {
+      "available" : false,
+      "bookingUrl" : "tel:+359879925093",
+      "category" : "care",
+      "description" : 
+      {
+        "bg" : "В момента тази услуга не се предлага.",
+        "en" : "This service is currently unavailable."
+      },
+      "id" : "tibetan",
+      "title" : 
+      {
+        "bg" : "Тибетски масаж LIGHT",
+        "en" : "Tibetan LIGHT massage"
+      },
+      "variants" : 
+      [
+        {
+          "currency" : "EUR",
+          "durationMinutes" : 30,
+          "priceMinor" : null
+        }
+      ]
+    }
+  ],
+  "team" : 
+  [
+    {
+      "bio" : 
+      {
+        "bg" : "Масажист–терапевт и лаш артист с опит в СПА центрове. Открива свое студио в София през 2020 г., а от 2021 г. работи заедно с майка си Диляна.",
+        "en" : "Massage therapist and lash artist with spa experience. Opened her Sofia studio in 2020 and has worked with her mother Dilyana since 2021."
+      },
+      "image" : 
+      {
+        "alt" : 
+        {
+          "bg" : "Мария Дамянова",
+          "en" : "Maria Damyanova"
+        },
+        "src" : "/assets/maria.jpg"
+      },
+      "languages" : 
+      {
+        "bg" : "Говори български и английски.",
+        "en" : "Speaks Bulgarian and English."
+      },
+      "name" : 
+      {
+        "bg" : "Мария Дамянова",
+        "en" : "Maria Damyanova"
+      },
+      "role" : 
+      {
+        "bg" : "Масажист–терапевт · Лаш артист",
+        "en" : "Massage therapist · Lash artist"
+      }
+    },
+    {
+      "bio" : 
+      {
+        "bg" : "Практикува хавайски Ломи-Ломи, ароматерапия и остеоестетика. След работа в Австрия и собствено студио в Слънчев бряг създава семейното студио с Мария. Води професионални и домашни курсове по масаж.",
+        "en" : "Practises Hawaiian Lomi Lomi, aromatherapy and osteo-aesthetics. After working in Austria and running a studio in Sunny Beach, established the family studio with Maria. Teaches professional and home massage courses."
+      },
+      "image" : 
+      {
+        "alt" : 
+        {
+          "bg" : "Диляна Дамянова",
+          "en" : "Dilyana Damyanova"
+        },
+        "src" : "/assets/dilyana.jpg"
+      },
+      "languages" : 
+      {
+        "bg" : "Говори български, английски, немски и руски.",
+        "en" : "Speaks Bulgarian, English, German and Russian."
+      },
+      "name" : 
+      {
+        "bg" : "Диляна Дамянова",
+        "en" : "Dilyana Damyanova"
+      },
+      "role" : 
+      {
+        "bg" : "Масажист–терапевт",
+        "en" : "Massage therapist"
+      }
+    }
+  ],
+  "translations" : 
+  {
+    "bg" : 
+    {
+  "nativeBookingTitle": "Резервация в локалния пример",
+  "nativeBookingText": "Тестов календар с демо ресурси. Влезте в профила си, за да видите свободните часове. Тези резервации не се изпращат към Fresha.",
+  "nativeBookingAction": "Изберете услуга и час",
+      "about" : "За нас",
+      "aboutIntro" : "Семеен бизнес с лично отношение.",
+      "aboutText" : "Зад Алоха стоят Мария и Диляна. Студиото събира на едно място масажи на тяло, грижа за лицето и спокойна обстановка. Ще Ви помогнем да изберете сесия според предпочитанията си.",
+      "address" : "Адрес",
+      "allCategories" : "Всички масажи",
+      "ask" : "Попитайте ни",
+      "book" : "Запазете час",
+      "bookingIntro" : "Време за Вас, в удобно за Вас време.",
+      "bookingText" : "Изберете ден и час в календара на Fresha. За масаж за двама и масаж на четири ръце ни се обадете.",
+      "callToBook" : "Резервация по телефон",
+      "category" : "Категория",
+      "contact" : "Връзка с нас",
+      "contactTitle" : "Очакваме Ви в Алоха",
+      "course" : "Курс по масаж",
+      "courseNote" : "Потвърдете следващата начална дата и всички условия с преподавателя преди записване.",
+      "directions" : "Как да ни намерите",
+      "discover" : "Разгледайте студиото",
+      "duration" : "Продължителност",
+      "error" : "Съдържанието не може да се зареди. За резервация се обадете на +359 879 925 093.",
+      "externalBooking" : "Отворете календара на Fresha",
+      "from" : "от",
+      "fullMenu" : "Пълното меню в съществуващия сайт",
+      "galleryTitle" : "В нашето студио",
+      "heroSubtitle" : "Вашето спокойно място за релакс в сърцето на София.",
+      "home" : "Начало",
+      "homeCourseText" : "Практически занимания за двойки, приятели и малки групи. Уточнете цената и свободните дати по телефон.",
+      "homeCourseTitle" : "Курс по домашен масаж",
+      "hours" : "Работно време",
+      "languageLabel" : "Switch to English",
+      "menu" : "Меню Масажи",
+      "menuIntro" : "Изберете своя масаж и продължителност. За свободни часове отворете календара или ни се обадете.",
+      "menuNote" : "Цените и наличността се потвърждават при резервация. За индивидуални програми и пакети се свържете със студиото.",
+      "minutes" : "мин",
+      "motto" : "Здраве · Красота · Релакс",
+      "navigation" : "Основна навигация",
+      "noResults" : "Няма масажи, които отговарят на търсенето.",
+      "offers" : "Предложения за Вас",
+      "pageTitles" : 
+      {
+        "about" : "За нас",
+        "booking" : "Запазете час",
+        "home" : "Алоха Масажи България",
+        "menu" : "Масажи София · Меню",
+        "training" : "Школа по масажи",
+        "vouchers" : "Подаръчни ваучери"
+      },
+      "price" : "Цена",
+      "priceOnBooking" : "Цена при резервация",
+      "professional" : "Професионални масажи",
+      "readReviews" : "Отзиви и местоположение",
+      "results" : "Намерени услуги:",
+      "retry" : "Опитайте отново",
+      "reviewsText" : "Прочетете отзивите на нашите гости и вижте къде се намираме в Google Maps.",
+      "reviewsTitle" : "Споделени преживявания",
+      "search" : "Търсете масаж",
+      "searchPlaceholder" : "Например: Ломи-Ломи",
+      "shortBrand" : "Алоха България",
+      "skip" : "Към съдържанието",
+      "studioIntro" : "Малко семейно студио. Време за Вас.",
+      "studioText" : "Добре дошли в нашето студио в квартал Иван Вазов. Изберете масаж, подарете време на близък човек или просто си дайте малко почивка от ежедневието.",
+      "studioTitle" : "Алоха Масажи София",
+      "teamTitle" : "Запознайте се с нас",
+      "training" : "Обучения",
+      "trainingDetails" : "Още за обученията",
+      "trainingIntro" : "Научете повече за изкуството на масажа.",
+      "trainingText" : "Предлагаме базов курс по класически масаж и занимания по домашен масаж и самомасаж. Свържете се с нас за програмата, следващите дати и условията за участие.",
+      "trainingTitle" : "Обучения в Алоха",
+      "unavailable" : "Временно не се предлага",
+      "voucherAction" : "Поръчайте в онлайн магазина",
+      "voucherIntro" : "Подарете време за почивка.",
+      "voucherNote" : "Поръчката и плащането продължават в съществуващия сайт на Алоха. За индивидуален подарък ни се обадете.",
+      "voucherTerms" : "Полезно за Вашия подарък",
+      "voucherText" : "Подаръчните ваучери на Алоха се предлагат онлайн или като картичка. Изберете СПА релакс или хавайски Ломи-Ломи масаж и уточнете получаването при поръчка.",
+      "voucherTitle" : "Малък жест. Специално преживяване.",
+      "vouchers" : "Онлайн ваучери",
+      "whatsapp" : "Пишете ни в WhatsApp"
+    },
+    "en" : 
+    {
+  "nativeBookingTitle": "Book in the local example",
+  "nativeBookingText": "Test calendar with demo resources. Sign in to see available times. These reservations are not sent to Fresha.",
+  "nativeBookingAction": "Choose a service and time",
+      "about" : "About us",
+      "aboutIntro" : "A family business with a personal touch.",
+      "aboutText" : "Meet Maria and Dilyana, the people behind Aloha. Our studio brings together body massage, facial care and a peaceful setting. We will help you choose a session to suit your preferences.",
+      "address" : "Address",
+      "allCategories" : "All massages",
+      "ask" : "Ask us",
+      "book" : "Book a massage",
+      "bookingIntro" : "Time for yourself, at a time that suits you.",
+      "bookingText" : "Choose a day and time in the Fresha calendar. For a couples massage or a four-hands massage, please call us.",
+      "callToBook" : "Call to book",
+      "category" : "Category",
+      "contact" : "Get in touch",
+      "contactTitle" : "Find your way to Aloha",
+      "course" : "Massage course",
+      "courseNote" : "Confirm the next start date and all terms with the instructor before enrolling.",
+      "directions" : "Get directions",
+      "discover" : "Discover the studio",
+      "duration" : "Duration",
+      "error" : "We could not load the content. Please call +359 879 925 093 to book.",
+      "externalBooking" : "Open the Fresha calendar",
+      "from" : "from",
+      "fullMenu" : "Full menu on the existing website",
+      "galleryTitle" : "Inside our studio",
+      "heroSubtitle" : "Your peaceful place to relax in the heart of Sofia.",
+      "home" : "Home",
+      "homeCourseText" : "Practical sessions for couples, friends and small groups. Call to confirm the price and available dates.",
+      "homeCourseTitle" : "Home massage course",
+      "hours" : "Opening hours",
+      "languageLabel" : "Превключете на български",
+      "menu" : "Massage menu",
+      "menuIntro" : "Choose your massage and its duration. Open the booking calendar or call us to find an available appointment.",
+      "menuNote" : "Prices and availability are confirmed when booking. Contact the studio for individual programmes and packages.",
+      "minutes" : "min",
+      "motto" : "Health · Beauty · Relaxation",
+      "navigation" : "Main navigation",
+      "noResults" : "No massages match your search.",
+      "offers" : "Something for you",
+      "pageTitles" : 
+      {
+        "about" : "About us",
+        "booking" : "Book a massage",
+        "home" : "Aloha Massage Bulgaria",
+        "menu" : "Sofia massage menu",
+        "training" : "Massage school",
+        "vouchers" : "Gift vouchers"
+      },
+      "price" : "Price",
+      "priceOnBooking" : "Price on booking",
+      "professional" : "Professional massage",
+      "readReviews" : "Reviews & location",
+      "results" : "Services found:",
+      "retry" : "Try again",
+      "reviewsText" : "Read our guests’ reviews and find our studio on Google Maps.",
+      "reviewsTitle" : "Shared experiences",
+      "search" : "Find a massage",
+      "searchPlaceholder" : "For example: Lomi Lomi",
+      "shortBrand" : "Aloha Bulgaria",
+      "skip" : "Skip to content",
+      "studioIntro" : "A small family studio. Time for yourself.",
+      "studioText" : "Welcome to our studio in Ivan Vazov. Choose a massage, give someone you love a little time for themselves, or simply take a break from everyday life.",
+      "studioTitle" : "Aloha Massage Sofia",
+      "teamTitle" : "Meet the team",
+      "training" : "Training",
+      "trainingDetails" : "More about training",
+      "trainingIntro" : "Discover the art of massage.",
+      "trainingText" : "We offer a basic classical massage course, as well as home massage and self-massage sessions. Contact us for the programme, upcoming dates and participation details.",
+      "trainingTitle" : "Learn with Aloha",
+      "unavailable" : "Currently unavailable",
+      "voucherAction" : "Order in the online shop",
+      "voucherIntro" : "Give the gift of a little time out.",
+      "voucherNote" : "Ordering and payment continue on the existing Aloha website. Call us to arrange a personalised gift.",
+      "voucherTerms" : "Your gift, arranged with care",
+      "voucherText" : "Aloha gift vouchers are available digitally or as a gift card. Choose spa relaxation or a Hawaiian Lomi Lomi massage, and arrange delivery when ordering.",
+      "voucherTitle" : "A small gesture. A special experience.",
+      "vouchers" : "Gift vouchers",
+      "whatsapp" : "Message us on WhatsApp"
+    }
+  },
+  "voucherDetails" : 
+  [
+    {
+      "description" : 
+      {
+        "bg" : "Електронен ваучер по имейл, WhatsApp, Viber или Messenger, или подаръчна картичка. Уточнете получателя, пожеланието и начина на получаване при поръчка.",
+        "en" : "An electronic voucher by email, WhatsApp, Viber or Messenger, or a gift card. Confirm the recipient, personal message and delivery method when ordering."
+      },
+      "title" : 
+      {
+        "bg" : "Получаване",
+        "en" : "Delivery"
+      }
+    },
+    {
+      "description" : 
+      {
+        "bg" : "Посочената в съществуващия сайт валидност е два месеца от покупката. Получателят запазва час предварително. Потвърдете срока и условията при поръчка.",
+        "en" : "The existing website lists a validity of two months from purchase. The recipient books an appointment in advance. Confirm the expiry and terms when ordering."
+      },
+      "title" : 
+      {
+        "bg" : "Валидност и използване",
+        "en" : "Validity and use"
+      }
+    },
+    {
+      "description" : 
+      {
+        "bg" : "За персонален подарък или плащане директно към студиото се свържете с нас. Поръчките от бутоните по-горе се обработват от съществуващия онлайн магазин.",
+        "en" : "Contact us for a personalised gift or payment directly to the studio. Orders using the buttons above are processed by the existing online shop."
+      },
+      "title" : 
+      {
+        "bg" : "Плащане и специални желания",
+        "en" : "Payment and special requests"
+      }
+    }
+  ],
+  "voucherOptions" : 
+  [
+    {
+      "currency" : "EUR",
+      "description" : 
+      {
+        "bg" : "Подарете 75 минути спокойствие и грижа.",
+        "en" : "Give 75 minutes of relaxation and care."
+      },
+      "durationMinutes" : 75,
+      "id" : "spa-relax",
+      "priceMinor" : 6000,
+      "purchaseUrl" : "https://www.alohamassage.bg/product/ваучер-за-релакс-масаж/",
+      "title" : 
+      {
+        "bg" : "СПА релакс",
+        "en" : "Spa relaxation"
+      }
+    },
+    {
+      "currency" : "EUR",
+      "description" : 
+      {
+        "bg" : "80 минути хавайски масаж с плавни, ритмични движения.",
+        "en" : "80 minutes of Hawaiian massage with flowing, rhythmic movements."
+      },
+      "durationMinutes" : 80,
+      "id" : "lomi-lomi",
+      "priceMinor" : 7000,
+      "purchaseUrl" : "https://www.alohamassage.bg/product/ваучер-за-хавайски-масаж/",
+      "title" : 
+      {
+        "bg" : "Хавайски Ломи-Ломи",
+        "en" : "Hawaiian Lomi Lomi"
+      }
+    }
+  ]
+}

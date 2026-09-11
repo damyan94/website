@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Account</title>
+  <link rel="stylesheet" href="/accounts-assets/admin.css">
+  <script type="module" src="/accounts-assets/admin.js"></script>
+</head>
+<body>
+  <div class="admin-ribbon" id="admin-ribbon">
+  <header>
+    <div><strong data-site-name hidden></strong><span id="session-identity" class="session-identity" hidden></span><a href="/" data-text="website">Back to website</a></div>
+    <nav aria-label="Account navigation">
+      <a href="/profile" data-text="profile">My profile</a>
+      <a href="/admin" id="admin-link" data-text="administration" hidden>Administration</a>
+      <label class="language-picker"><span data-text="interfaceLanguage">Interface language</span><select id="language"></select></label>
+      <button type="button" id="logout" data-text="logout" hidden>Sign out</button>
+    </nav>
+  </header>
+  <div class="ribbon-tools">
+    <nav id="section-nav" class="section-nav" aria-label="Account sections" hidden></nav>
+    <p id="status" role="status" aria-live="polite"></p>
+  </div>
+  </div>
+  <main>
+    <h1 id="title">Your account</h1>
+    <section id="login-section">
+      <h2 data-text="login">Sign in</h2>
+      <form id="login-form" method="post">
+        <label><span data-text="email">Email</span><input name="email" type="email" autocomplete="username" maxlength="254" required></label>
+        <label><span data-text="password">Password</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <button data-text="login">Sign in</button>
+      </form>
+      <p><a id="register-link" hidden data-text="register">Register</a> <a id="recovery-link" hidden data-text="recover">Forgot password?</a></p>
+      <p class="muted" data-support>For account help, contact support.</p>
+    </section>
+    <div id="signed-in" hidden>
+      <div id="sections"></div>
+    </div>
+    <template id="profile-template">
+      <section>
+        <h2 data-text="profile">My profile</h2>
+        <p id="identity" class="muted"></p>
+        <form id="profile-form" method="post">
+          <label><span data-text="name">Name</span><input name="displayName" autocomplete="name" maxlength="100" required></label>
+          <label><span data-text="phone">Phone (optional)</span><input name="phone" type="tel" autocomplete="tel" maxlength="32"></label>
+          <label><span data-text="preferredLanguage">Preferred language</span><select name="locale"></select></label>
+          <button data-text="save">Save changes</button>
+        </form>
+      </section>
+      <section id="email-section" hidden>
+        <h2 data-text="emailSettings">Email settings</h2>
+        <p id="email-status"></p>
+        <button type="button" id="verify-email" data-text="verifyEmail">Send verification link</button>
+        <form id="email-form" method="post" hidden>
+          <label><span data-text="newEmail">New email address</span><input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+          <label><span data-text="currentPassword">Current password</span><input name="currentPassword" type="password" autocomplete="current-password" required></label>
+          <p class="muted" data-text="emailChangeHelp">Confirm the new address by email. This signs out all devices and removes the old newsletter subscription.</p>
+          <button data-text="changeEmail">Request email change</button>
+        </form>
+        <div id="subscription-section" hidden>
+          <h3 data-text="newsletters">Newsletters and offers</h3>
+          <p id="subscription-status"></p>
+          <p class="muted" data-text="subscriptionHelp">Optional promotional email. You can unsubscribe at any time; account messages are separate.</p>
+          <button type="button" id="subscription"></button>
+        </div>
+      </section>
+      <section>
+        <h2 data-text="changePassword">Change password</h2>
+        <form id="password-form" method="post">
+          <label><span data-text="currentPassword">Current password</span><input name="currentPassword" type="password" autocomplete="current-password" required></label>
+          <label><span data-text="newPassword">New password</span><input name="newPassword" type="password" autocomplete="new-password" minlength="15" required aria-describedby="password-help"></label>
+          <p id="password-help" class="muted" data-text="passwordHelp">Use 15–128 characters. A long, unique passphrase works well. Changing your password signs out all devices.</p>
+          <button data-text="changePassword">Change password</button>
+        </form>
+      </section>
+    </template>
+    <template id="users-template">
+        <section>
+          <details>
+          <summary data-text="createAccount">Create an account</summary>
+          <form id="create-form" method="post">
+            <label><span data-text="email">Email</span><input name="email" type="email" autocomplete="off" maxlength="254" required></label>
+            <label><span data-text="name">Name</span><input name="displayName" autocomplete="off" maxlength="100" required></label>
+            <label><span data-text="phone">Phone (optional)</span><input name="phone" type="tel" autocomplete="off" maxlength="32"></label>
+            <label><span data-text="preferredLanguage">Preferred language</span><select name="locale"></select></label>
+            <label><span data-text="role">Role</span><select name="role"><option value="customer" data-text="customer">Customer</option><option value="operator" data-text="operator">Operator</option><option value="admin" data-text="admin">Administrator</option></select></label>
+            <label><span data-text="initialPassword">Initial password</span><input name="password" type="password" autocomplete="new-password" minlength="15" required></label>
+            <p class="muted" data-text="initialPasswordHelp">Use a unique password and share it privately with the account owner. They can change it after signing in.</p>
+            <button data-text="createAccount">Create account</button>
+          </form>
+          </details>
+        </section>
+        <section>
+          <div class="section-heading"><h2 data-text="users">Accounts</h2><button type="button" id="refresh" data-text="refresh">Refresh</button></div>
+          <p class="muted" data-text="accessHelp">Changing access signs that account out on every device. Your own administrator account cannot be disabled or demoted here.</p>
+          <form id="user-filters" class="user-filters" role="search">
+            <label class="user-search"><span data-text="searchUsers">Search name or email</span><input name="q" type="search" maxlength="100"></label>
+            <label><span data-text="role">Role</span><select name="role"><option value="" data-text="allRoles">All roles</option><option value="customer" data-text="customer">Customer</option><option value="operator" data-text="operator">Operator</option><option value="admin" data-text="admin">Administrator</option></select></label>
+            <label><span data-text="access">Access</span><select name="enabled"><option value="" data-text="allAccess">All accounts</option><option value="true" data-text="enabled">Enabled</option><option value="false" data-text="disabled">Disabled</option></select></label>
+            <label><span data-text="sortBy">Sort by</span><select name="sort"><option value="createdAt" data-text="createdAt">Created</option><option value="lastLoginAt" data-text="lastLoginAt">Last login</option><option value="email" data-text="email">Email</option></select></label>
+            <label><span data-text="sortOrder">Order</span><select name="order"><option value="desc" data-text="descending">Descending / newest first</option><option value="asc" data-text="ascending">Ascending / oldest first</option></select></label>
+            <button data-text="applyFilters">Apply filters</button>
+            <button type="button" id="clear-filters" data-text="clearFilters">Clear filters</button>
+          </form>
+          <p class="muted" data-text="userDatesHelp">Dates use your device's time zone. Last login records successful sign-ins, not current online status.</p>
+          <div class="table-scroll" tabindex="0" role="region" data-label="users">
+            <table class="users-table">
+              <caption class="visually-hidden" data-text="users">Accounts</caption>
+              <thead><tr><th scope="col" data-text="name">Name</th><th scope="col" data-text="email">Email</th><th scope="col" data-text="emailVerification">Email verification</th><th scope="col" data-text="createdAt">Created</th><th scope="col" data-text="lastLoginAt">Last login</th><th scope="col" data-text="management">Management</th></tr></thead>
+              <tbody id="users"></tbody>
+            </table>
+          </div>
+          <p id="users-empty" data-text="noUsers" hidden>No accounts match these filters.</p>
+          <nav class="pagination" data-label="pagination">
+            <button type="button" id="previous-page" data-text="previousPage">Previous</button>
+            <span id="page-summary" role="status"></span>
+            <button type="button" id="next-page" data-text="nextPage">Next</button>
+          </nav>
+        </section>
+    </template>
+    <noscript><p>JavaScript is required to use your account. За Вашия профил е необходим JavaScript.</p></noscript>
+  </main>
+</body>
+</html>

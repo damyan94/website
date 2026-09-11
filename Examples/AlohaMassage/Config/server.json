@@ -1,0 +1,44 @@
+{
+  "listeners": [
+    {
+      "address": "127.0.0.1",
+      "port": 8080,
+      "https": false
+    }
+  ],
+  "app": {
+    "number_of_threads": 1,
+    "enable_session": false,
+    "document_root": "../Public",
+    "home_page": "index.html",
+    "upload_path": "../Runtime/Uploads",
+    "file_types": [
+      "html",
+      "css",
+      "js",
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "svg",
+      "webp",
+      "ico",
+      "woff",
+      "woff2"
+    ],
+    "static_files_cache_time": -1,
+    "client_max_body_size": "1M",
+    "client_max_memory_body_size": "64K",
+    "idle_connection_timeout": 60,
+    "run_as_daemon": false,
+    "relaunch_on_error": false,
+    "handle_sig_term": true,
+    "log": {
+      "log_level": "INFO",
+      "log_path": ""
+    }
+  },
+  "custom_config": {
+    "public_content_file": "../Content/site.json"
+  }
+}
