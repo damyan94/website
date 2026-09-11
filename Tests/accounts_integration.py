@@ -524,7 +524,25 @@ def main():
                 assert me['user']['role'] == 'admin' and me['locales'] == ['bg','en']
                 assert 'password' not in json.dumps(me).lower()
                 profile = {'displayName':'Администратор 🌺','phone':'+359 123','locale':'bg','version':me['user']['version']}
-                admin.request('/api/v1/me', 'PATCH', profile, expected=403, headers={'X-CSRF-Token':'bad'})
+                session_query = "SELECT token_hash,last_seen FROM accounts.sessions WHERE user_id=" + me['user']['id'] + " ORDER BY token_hash"
+                sql("UPDATE accounts.sessions SET last_seen=now()-interval '1 second' WHERE user_id=" + me['user']['id'])
+                session_before = sql(session_query)
+                session_cookie = admin.cookie
+                for csrf in ['', 'bad', 'z'*64]:
+                    rejected, _ = admin.request('/api/v1/me', 'PATCH', profile, expected=403, headers={'X-CSRF-Token':csrf})
+                    assert rejected == {'error':'Invalid request token'}
+                    assert admin.cookie == session_cookie and sql(session_query) == session_before
+                probe = Client()
+                cookie_name = session_cookie.split('=', 1)[0]
+                for invalid_token in ['short', 'z'*64]:
+                    probe.cookie = cookie_name + '=' + invalid_token
+                    rejected, _ = probe.request('/api/v1/me', 'PATCH', profile, expected=401, headers={'X-CSRF-Token':'z'*64})
+                    assert rejected == {'error':'Please sign in'} and probe.cookie == ''
+                    assert sql(session_query) == session_before
+                # Reads do not require CSRF, and a successful lookup refreshes activity.
+                read, _ = admin.request('/api/v1/me', headers={'X-CSRF-Token':'z'*64})
+                assert read == me and sql(session_query) != session_before
+                print('PASS: session lookup, mutation-only CSRF, rejected-request activity rollback and read refresh', flush=True)
                 admin.request('/api/v1/me', 'PATCH', {**profile,'role':'admin'}, expected=400)
                 profile_id = me['user']['id']
                 profile_credential = sql("SELECT credential_version FROM accounts.users WHERE id=" + profile_id)
@@ -626,10 +644,20 @@ def main():
                 copy.request('/api/v1/me',expected=401)
                 customer.login('customer2@example.test',other_password,expected=401)
                 customer.login('customer2@example.test',new_password)
+                copy.login('customer2@example.test',new_password)
                 token = customer.cookie
-                customer.request('/api/v1/auth/logout','POST',{})
+                logout_query = "SELECT token_hash,last_seen FROM accounts.sessions WHERE user_id=" + ids['customer'] + " ORDER BY token_hash"
+                before_logout = sql(logout_query)
+                assert sql("SELECT count(*) FROM accounts.sessions WHERE user_id=" + ids['customer']) == '2'
+                customer.request('/api/v1/auth/logout','POST',{'unexpected':True},expected=400)
+                assert customer.cookie == token and sql(logout_query) == before_logout
+                logged_out, _ = customer.request('/api/v1/auth/logout','POST',{})
+                assert logged_out == {} and customer.cookie == ''
+                assert sql("SELECT count(*) FROM accounts.sessions WHERE user_id=" + ids['customer']) == '1'
+                assert copy.request('/api/v1/me')[0]['user']['id'] == ids['customer']
                 customer.cookie = token
                 customer.request('/api/v1/me',expected=401)
+                print('PASS: strict logout rolls back rejected requests and revokes only the current device', flush=True)
                 customer.login('customer2@example.test',new_password)
                 sql("UPDATE accounts.sessions SET last_seen=now()-interval '2 hours' WHERE user_id="+ids['customer'])
                 customer.request('/api/v1/me',expected=401)

@@ -1,6 +1,7 @@
 #include "AccountStore.h"
 #include "AccountQueryService.h"
 #include "AccountWriteService.h"
+#include "SessionService.h"
 #include "Crypto.h"
 #include "stdafx.h"
 
@@ -112,23 +113,9 @@ void AccountStore::Audit(const std::string& actor, const std::string& subject, c
 
 Json::Value AccountStore::Session(const std::string& token, const std::string& csrf, bool mutation)
 {
-	if (token.size() != 64)
-		throw RequestError(401, "Please sign in");
-	const auto hash = TokenHash(token);
-	const auto rows =
-		m_Database.Query("SELECT u.id,u.email,u.display_name,u.phone,u.locale,u.role,u.enabled,u.version,s.csrf_token "
-						 "FROM accounts.users u JOIN accounts.sessions s ON s.user_id=u.id "
-						 "WHERE s.token_hash=$1 AND u.enabled AND s.expires_at>now() "
-						 "AND s.last_seen>now()-make_interval(secs=>$2::int) FOR UPDATE OF u,s",
-						 {hash, std::to_string(m_Settings.idleSeconds)});
-	if (!rows.Count())
-		throw RequestError(401, "Please sign in");
-	if (mutation && (csrf.size() != 64 || !ConstantEqual(csrf, rows.Get(0, 8))))
-		throw RequestError(403, "Invalid request token");
-	m_Database.Query("UPDATE accounts.sessions SET last_seen=now() WHERE token_hash=$1", {hash});
-	auto user		  = User(rows, 0);
-	user["csrfToken"] = rows.Get(0, 8);
-	return user;
+	AccountRepository repository(m_Database);
+	SessionService service(repository, m_Settings.idleSeconds);
+	return service.Validate(token, csrf, mutation);
 }
 
 Reply AccountStore::Login(const Json::Value& body, const std::string& oldToken)
@@ -219,7 +206,7 @@ Reply AccountStore::Handle(Action				action,
 	else if (action == Action::Logout)
 	{
 		RequireFields(body, {});
-		m_Database.Query("DELETE FROM accounts.sessions WHERE token_hash=$1", {TokenHash(token)});
+		RevokeSession(token);
 		reply.clearCookie = true;
 	}
 	else if (action == Action::UpdateMe)
@@ -337,9 +324,18 @@ Reply AccountStore::RunDatabaseOperation(const std::string&		  token,
 	return reply;
 }
 
+void AccountStore::RevokeSession(const std::string& token)
+{
+	AccountRepository repository(m_Database);
+	SessionService service(repository, m_Settings.idleSeconds);
+	service.Revoke(token);
+}
+
 void AccountStore::RevokeSessions(const std::string& user)
 {
-	m_Database.Query("DELETE FROM accounts.sessions WHERE user_id=$1::bigint", {user});
+	AccountRepository repository(m_Database);
+	SessionService service(repository, m_Settings.idleSeconds);
+	service.RevokeAll(user);
 }
 
 void AccountStore::Bootstrap(const std::string& email, const std::string& password)

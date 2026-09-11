@@ -36,6 +36,19 @@ struct UserAccessState
 	std::string version;
 };
 
+struct SessionRecord
+{
+	std::string userId;
+	std::string email;
+	std::string displayName;
+	std::string phone;
+	std::string locale;
+	std::string role;
+	bool enabled;
+	std::string version;
+	std::string csrfToken;
+};
+
 // Borrows the current worker's connection and participates in its caller's transaction.
 class AccountRepository
 {
@@ -61,6 +74,12 @@ public:
 	long long CountEnabledAdmins();
 	void UpdateUserAccess(const std::string& user, const std::string& role, bool enabled);
 	void Audit(const std::string& actor, const std::string& subject, const char* action);
+
+	std::optional<SessionRecord> LockActiveSession(const std::string& tokenHash, int idleSeconds);
+	void TouchSession(const std::string& tokenHash);
+
+	void DeleteSession(const std::string& tokenHash);
+	void DeleteUserSessions(const std::string& user);
 
 private:
 	Database& m_Database;

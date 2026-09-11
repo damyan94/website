@@ -134,4 +134,39 @@ void AccountRepository::Audit(const std::string& actor, const std::string& subje
 		{actor, subject, action});
 }
 
+std::optional<SessionRecord> AccountRepository::LockActiveSession(const std::string& tokenHash, int idleSeconds)
+{
+	const auto rows =
+		m_Database.Query("SELECT u.id,u.email,u.display_name,u.phone,u.locale,u.role,u.enabled,u.version,s.csrf_token "
+						 "FROM accounts.users u JOIN accounts.sessions s ON s.user_id=u.id "
+						 "WHERE s.token_hash=$1 AND u.enabled AND s.expires_at>now() "
+						 "AND s.last_seen>now()-make_interval(secs=>$2::int) FOR UPDATE OF u,s",
+						 {tokenHash, std::to_string(idleSeconds)});
+	if (!rows.Count())
+		return std::nullopt;
+	return SessionRecord{rows.Get(0, 0),
+						 rows.Get(0, 1),
+						 rows.Get(0, 2),
+						 rows.Get(0, 3),
+						 rows.Get(0, 4),
+						 rows.Get(0, 5),
+						 rows.Get(0, 6) == "t",
+						 rows.Get(0, 7),
+						 rows.Get(0, 8)};
+}
+
+void AccountRepository::TouchSession(const std::string& tokenHash)
+{
+	m_Database.Query("UPDATE accounts.sessions SET last_seen=now() WHERE token_hash=$1", {tokenHash});
+}
+
+void AccountRepository::DeleteSession(const std::string& tokenHash)
+{
+	m_Database.Query("DELETE FROM accounts.sessions WHERE token_hash=$1", {tokenHash});
+}
+
+void AccountRepository::DeleteUserSessions(const std::string& user)
+{
+	m_Database.Query("DELETE FROM accounts.sessions WHERE user_id=$1::bigint", {user});
+}
 } // namespace Accounts

@@ -63,6 +63,7 @@ private:
 	Reply		  ChangePassword(const Json::Value& body, const std::string& actor);
 	Reply		  CreateUser(const Json::Value& body, const std::string& actor);
 	Reply		  UpdateUser(const Json::Value& body, const std::string& actor);
+	void		  RevokeSession(const std::string& token);
 	void		  RevokeSessions(const std::string& user);
 	Reply		  ListUsers(const std::string& cursor, const UserListQuery& query);
 	Json::Value	  Session(const std::string& token, const std::string& csrf, bool mutation);
