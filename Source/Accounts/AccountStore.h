@@ -82,6 +82,4 @@ private:
 	Database	  m_Database;
 	StoreSettings m_Settings;
 };
-
-std::string NormalizedEmail(const std::string& email);
 } // namespace Accounts

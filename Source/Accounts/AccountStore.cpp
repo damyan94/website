@@ -1,7 +1,7 @@
 #include "AccountStore.h"
 #include "AccountQueryService.h"
+#include "AccountWriteService.h"
 #include "Crypto.h"
-#include "InputValidation.h"
 #include "stdafx.h"
 
 #include <algorithm>
@@ -22,32 +22,9 @@ std::string Field(const Json::Value& body, const char* key, int minimum, int max
 	return value;
 }
 
-std::string Identifier(const std::string& value)
-{
-	if (!InputValidation::IsDecimalIdentifier(value))
-		throw RequestError(400, "Invalid ID or version");
-	return value;
-}
-
 std::string Password(const Json::Value& body, const char* field)
 {
 	return Field(body, field, 15, 128);
-}
-
-std::string Role(const Json::Value& body)
-{
-	const auto role = Field(body, "role", 1, 20);
-	if (role != "admin" && role != "operator" && role != "customer")
-		throw RequestError(400, "Invalid role");
-	return role;
-}
-
-std::string Phone(const Json::Value& body)
-{
-	const auto phone = Field(body, "phone", 0, 32);
-	if (!InputValidation::HasPhoneCharacters(phone))
-		throw RequestError(400, "Invalid phone number");
-	return phone;
 }
 
 Json::Value User(const Rows& rows, int row)
@@ -273,20 +250,9 @@ Reply AccountStore::CurrentProfile(Json::Value user)
 
 Reply AccountStore::UpdateProfile(const Json::Value& body, const std::string& actor)
 {
-	Reply reply;
-	RequireFields(body, {"displayName", "phone", "locale", "version"});
-	const auto rows = m_Database.Query(
-		"UPDATE accounts.users SET display_name=$1,phone=$2,locale=$3,version=version+1,updated_at=now() "
-		"WHERE id=$4::bigint AND version=$5::bigint RETURNING id",
-		{Field(body, "displayName", 1, 100),
-		 Phone(body),
-		 Locale(body),
-		 actor,
-		 Identifier(Field(body, "version", 1, 18))});
-	if (!rows.Count())
-		throw RequestError(409, "Profile changed elsewhere; reload before saving");
-	Audit(actor, actor, "profile.updated");
-	return reply;
+	AccountRepository repository(m_Database);
+	AccountWriteService service(repository, m_Settings.locales);
+	return service.UpdateProfile(body, actor);
 }
 
 Reply AccountStore::ChangePassword(const Json::Value& body, const std::string& actor)
@@ -309,58 +275,22 @@ Reply AccountStore::ChangePassword(const Json::Value& body, const std::string& a
 
 Reply AccountStore::CreateUser(const Json::Value& body, const std::string& actor)
 {
-	Reply reply;
-	RequireFields(body, {"email", "password", "displayName", "phone", "locale", "role"});
-	const auto email   = NormalizedEmail(Field(body, "email", 3, 254));
-	const auto name	   = Field(body, "displayName", 1, 100);
-	const auto phone   = Phone(body);
-	const auto locale  = Locale(body);
-	const auto role	   = Role(body);
-	const auto encoded = HashPassword(Password(body, "password"));
-	const auto rows = m_Database.Query("INSERT INTO accounts.users(email,password_hash,display_name,phone,locale,role) "
-									   "VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
-									   {email, encoded, name, phone, locale, role});
-	Audit(actor, rows.Get(0, 0), "user.created");
-	reply.status	 = 201;
-	reply.body["id"] = rows.Get(0, 0);
-	return reply;
+	AccountRepository repository(m_Database);
+	AccountWriteService service(repository, m_Settings.locales);
+	return service.CreateUser(body, actor);
 }
 
 Reply AccountStore::UpdateUser(const Json::Value& body, const std::string& actor)
 {
-	Reply reply;
-	RequireFields(body, {"id", "role", "enabled", "version"});
-	const auto id	= Identifier(Field(body, "id", 1, 18));
-	const auto role = Role(body);
-	if (!body["enabled"].isBool())
-		throw RequestError(400, "Enabled must be a boolean");
-	const bool enabled = body["enabled"].asBool();
-	if (id == actor && (!enabled || role != "admin"))
-		throw RequestError(409, "You cannot disable or demote your own administrator account");
-	const auto current =
-		m_Database.Query("SELECT role,enabled,version FROM accounts.users WHERE id=$1::bigint FOR UPDATE", {id});
-	if (!current.Count())
-		throw RequestError(404, "Account not found");
-	if (current.Get(0, 2) != Identifier(Field(body, "version", 1, 18)))
-		throw RequestError(409, "Account changed elsewhere; reload before saving");
-	if (current.Get(0, 0) == "admin" && current.Get(0, 1) == "t" && (!enabled || role != "admin"))
-	{
-		const auto admins = m_Database.Query("SELECT count(*) FROM accounts.users WHERE role='admin' AND enabled");
-		if (admins.Get(0, 0) == "1")
-			throw RequestError(409, "At least one active administrator is required");
-	}
-	m_Database.Query("UPDATE accounts.users SET "
-					 "role=$1,enabled=$2::boolean,credential_version=credential_version+1,version=version+1,"
-					 "updated_at=now() "
-					 "WHERE id=$3::bigint",
-					 {role, enabled ? "true" : "false", id});
-	RevokeSessions(id);
-	if (!enabled)
-		UnsubscribeUser(id, "account-disabled-v1");
-	Audit(actor, id, "user.access_changed");
-	if (id == actor)
-		reply.clearCookie = true;
-	return reply;
+	AccountRepository repository(m_Database);
+	AccountWriteService service(repository, m_Settings.locales);
+	return service.UpdateUser(body, actor,
+							  [this](const std::string& id, bool enabled)
+							  {
+								  RevokeSessions(id);
+								  if (!enabled)
+									  UnsubscribeUser(id, "account-disabled-v1");
+							  });
 }
 
 Reply AccountStore::RunProtected(const std::string&		   token,

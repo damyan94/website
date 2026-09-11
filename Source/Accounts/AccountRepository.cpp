@@ -76,4 +76,62 @@ std::vector<UserSummary> AccountRepository::ListUsersPage(const UserListQuery& q
 	return ReadUsers(m_Database.Query(
 		sql.c_str(), {query.search, query.role, query.enabled, std::to_string(offset)}));
 }
+
+bool AccountRepository::UpdateProfile(const std::string& user,
+									  const std::string& displayName,
+									  const std::string& phone,
+									  const std::string& locale,
+									  const std::string& version)
+{
+	const auto rows = m_Database.Query(
+		"UPDATE accounts.users SET display_name=$1,phone=$2,locale=$3,version=version+1,updated_at=now() "
+		"WHERE id=$4::bigint AND version=$5::bigint RETURNING id",
+		{displayName, phone, locale, user, version});
+	return rows.Count() != 0;
+}
+
+std::string AccountRepository::CreateUser(const std::string& email,
+										  const std::string& passwordHash,
+										  const std::string& displayName,
+										  const std::string& phone,
+										  const std::string& locale,
+										  const std::string& role)
+{
+	const auto rows = m_Database.Query("INSERT INTO accounts.users(email,password_hash,display_name,phone,locale,role) "
+									   "VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+									   {email, passwordHash, displayName, phone, locale, role});
+	return rows.Get(0, 0);
+}
+
+std::optional<UserAccessState> AccountRepository::LockUserAccess(const std::string& user)
+{
+	const auto current =
+		m_Database.Query("SELECT role,enabled,version FROM accounts.users WHERE id=$1::bigint FOR UPDATE", {user});
+	if (!current.Count())
+		return std::nullopt;
+	return UserAccessState{current.Get(0, 0), current.Get(0, 1) == "t", current.Get(0, 2)};
+}
+
+long long AccountRepository::CountEnabledAdmins()
+{
+	const auto admins = m_Database.Query("SELECT count(*) FROM accounts.users WHERE role='admin' AND enabled");
+	return std::stoll(admins.Get(0, 0));
+}
+
+void AccountRepository::UpdateUserAccess(const std::string& user, const std::string& role, bool enabled)
+{
+	m_Database.Query("UPDATE accounts.users SET "
+					 "role=$1,enabled=$2::boolean,credential_version=credential_version+1,version=version+1,"
+					 "updated_at=now() "
+					 "WHERE id=$3::bigint",
+					 {role, enabled ? "true" : "false", user});
+}
+
+void AccountRepository::Audit(const std::string& actor, const std::string& subject, const char* action)
+{
+	m_Database.Query(
+		"INSERT INTO accounts.audit(actor_id, subject_id, action) VALUES(NULLIF($1,'')::bigint,$2::bigint,$3)",
+		{actor, subject, action});
+}
+
 } // namespace Accounts

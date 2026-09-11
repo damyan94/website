@@ -47,6 +47,7 @@ if(WEBSITE_ENABLE_ACCOUNTS)
 		Source/Accounts/Database.cpp
 		Source/Accounts/AccountStore.cpp
 		Source/Accounts/AccountQueryService.cpp
+		Source/Accounts/AccountWriteService.cpp
 		Source/Accounts/AccountRepository.cpp
 		Source/Accounts/Module.cpp
 		Source/Accounts/Controller.cpp

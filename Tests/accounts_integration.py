@@ -526,15 +526,30 @@ def main():
                 profile = {'displayName':'Администратор 🌺','phone':'+359 123','locale':'bg','version':me['user']['version']}
                 admin.request('/api/v1/me', 'PATCH', profile, expected=403, headers={'X-CSRF-Token':'bad'})
                 admin.request('/api/v1/me', 'PATCH', {**profile,'role':'admin'}, expected=400)
-                admin.request('/api/v1/me', 'PATCH', profile)
+                profile_id = me['user']['id']
+                profile_credential = sql("SELECT credential_version FROM accounts.users WHERE id=" + profile_id)
+                profile_audits = int(sql("SELECT count(*) FROM accounts.audit WHERE subject_id=" + profile_id + " AND action='profile.updated'"))
+                updated, _ = admin.request('/api/v1/me', 'PATCH', profile)
+                assert updated == {}
+                refreshed = admin.request('/api/v1/me')[0]
+                assert refreshed['user']['displayName'] == 'Администратор 🌺'
+                assert refreshed['user']['version'] == str(int(profile['version']) + 1)
+                assert refreshed['csrfToken'] == me['csrfToken']
+                assert sql("SELECT credential_version FROM accounts.users WHERE id=" + profile_id) == profile_credential
+                profile_sessions = sql("SELECT token_hash,last_seen FROM accounts.sessions WHERE user_id=" + profile_id + " ORDER BY token_hash")
                 admin.request('/api/v1/me', 'PATCH', profile, expected=409)
-                assert admin.request('/api/v1/me')[0]['user']['displayName'] == 'Администратор 🌺'
+                assert sql("SELECT token_hash,last_seen FROM accounts.sessions WHERE user_id=" + profile_id + " ORDER BY token_hash") == profile_sessions
+                assert admin.request('/api/v1/me')[0]['user']['version'] == refreshed['user']['version']
+                assert int(sql("SELECT count(*) FROM accounts.audit WHERE subject_id=" + profile_id + " AND action='profile.updated'")) == profile_audits + 1
                 other_password = secrets.token_urlsafe(24)
                 ids = {}
                 for role in ['customer','operator','admin']:
                     body = {'email':role+'2@example.test','password':other_password,'displayName':role,'phone':'','locale':'en','role':role}
                     ids[role] = admin.request('/api/v1/admin/users', 'POST', body, expected=201)[0]['id']
                 admin.request('/api/v1/admin/users','POST',body,expected=409)
+                for account_id in ids.values():
+                    assert isinstance(account_id, str) and account_id.isdecimal()
+                    assert sql("SELECT count(*) FROM accounts.audit WHERE subject_id=" + account_id + " AND action='user.created'") == '1'
                 customer = Client(); customer.login('customer2@example.test',other_password)
                 operator = Client(); operator.login('operator2@example.test',other_password)
                 for client in [customer,operator]:
@@ -566,11 +581,43 @@ def main():
 
                 users = admin.request('/api/v1/admin/users')[0]['users']
                 operator_row = next(u for u in users if u['id']==ids['operator'])
-                admin.request('/api/v1/admin/users','PATCH',{'id':ids['operator'],'role':'operator','enabled':False,'version':operator_row['version']})
+                operator_id = ids['operator']
+                operator_credential = int(sql("SELECT credential_version FROM accounts.users WHERE id=" + operator_id))
+                operator_audits = int(sql("SELECT count(*) FROM accounts.audit WHERE subject_id=" + operator_id + " AND action='user.access_changed'"))
+                # Seed consent to exercise the existing account-disable side effect even with email routes disabled.
+                sql("INSERT INTO accounts.subscriptions(user_id,email,confirmed_at) VALUES(" + operator_id + ",'operator2@example.test',now()) ON CONFLICT(user_id) DO UPDATE SET confirmed_at=now()")
+                generation = int(sql("SELECT generation FROM accounts.subscriptions WHERE user_id=" + operator_id))
+                disable = {'id':operator_id,'role':'operator','enabled':False,'version':operator_row['version']}
+                changed, _ = admin.request('/api/v1/admin/users','PATCH',disable)
+                assert changed == {}
+                assert sql("SELECT version FROM accounts.users WHERE id=" + operator_id) == str(int(operator_row['version']) + 1)
+                assert sql("SELECT credential_version FROM accounts.users WHERE id=" + operator_id) == str(operator_credential + 1)
+                assert sql("SELECT count(*) FROM accounts.sessions WHERE user_id=" + operator_id) == '0'
+                assert sql("SELECT confirmed_at IS NULL FROM accounts.subscriptions WHERE user_id=" + operator_id) == 't'
+                assert sql("SELECT generation FROM accounts.subscriptions WHERE user_id=" + operator_id) == str(generation + 1)
+                assert sql("SELECT count(*) FROM accounts.subscription_events WHERE user_id=" + operator_id + " AND source='account-disabled-v1'") == '1'
+                admin.request('/api/v1/admin/users','PATCH',disable,expected=409)
+                assert sql("SELECT version FROM accounts.users WHERE id=" + operator_id) == str(int(operator_row['version']) + 1)
+                assert sql("SELECT credential_version FROM accounts.users WHERE id=" + operator_id) == str(operator_credential + 1)
+                assert int(sql("SELECT count(*) FROM accounts.audit WHERE subject_id=" + operator_id + " AND action='user.access_changed'")) == operator_audits + 1
                 operator.request('/api/v1/me',expected=401)
                 operator.login('operator2@example.test',other_password,expected=401)
+                missing, _ = admin.request('/api/v1/admin/users','PATCH',{'id':'999999999999999999','role':'customer','enabled':True,'version':'invalid'},expected=404)
+                assert missing == {'error':'Account not found'}
                 self_row = next(u for u in users if u['email']=='admin@example.test')
                 admin.request('/api/v1/admin/users','PATCH',{'id':self_row['id'],'role':'customer','enabled':True,'version':self_row['version']},expected=409)
+                rejected, _ = admin.request('/api/v1/admin/users','PATCH',{'id':self_row['id'],'role':'customer','enabled':True,'version':'invalid'},expected=409)
+                assert rejected == {'error':'You cannot disable or demote your own administrator account'}
+                self_credential = int(sql("SELECT credential_version FROM accounts.users WHERE id=" + self_row['id']))
+                # Keeping one's own administrator access still invalidates all sessions and clears the cookie.
+                changed, _ = admin.request('/api/v1/admin/users','PATCH',{'id':self_row['id'],'role':'admin','enabled':True,'version':self_row['version']})
+                assert changed == {} and admin.cookie == ''
+                assert sql("SELECT version FROM accounts.users WHERE id=" + self_row['id']) == str(int(self_row['version']) + 1)
+                assert sql("SELECT credential_version FROM accounts.users WHERE id=" + self_row['id']) == str(self_credential + 1)
+                assert sql("SELECT count(*) FROM accounts.sessions WHERE user_id=" + self_row['id']) == '0'
+                admin.request('/api/v1/me',expected=401)
+                admin.login('admin@example.test',password)
+                print('PASS: profile/admin write versioning, stale-write rollback, audit, validation ordering and access invalidation', flush=True)
                 copy = Client(); copy.login('customer2@example.test',other_password)
                 new_password = secrets.token_urlsafe(24)
                 customer.request('/api/v1/me/password','POST',{'currentPassword':'not the right password','newPassword':new_password},expected=403)

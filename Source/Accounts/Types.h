@@ -90,4 +90,5 @@ using ProtectedOperation = std::function<Reply(const Identity&, const Json::Valu
 // SQL-backed modules run authorization and their operation in one transaction.
 using DatabaseOperation = std::function<Reply(Database&, const Identity&, const Json::Value&)>;
 
+std::string NormalizedEmail(const std::string& email);
 } // namespace Accounts
