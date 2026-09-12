@@ -3,6 +3,7 @@
 #include "AccountWriteService.h"
 #include "SessionService.h"
 #include "PasswordService.h"
+#include "LoginService.h"
 #include "Crypto.h"
 #include "stdafx.h"
 
@@ -24,16 +25,6 @@ std::string Field(const Json::Value& body, const char* key, int minimum, int max
 	return value;
 }
 
-Json::Value User(const Rows& rows, int row)
-{
-	Json::Value user(Json::objectValue);
-	const char* keys[] = {"id", "email", "displayName", "phone", "locale", "role"};
-	for (int i = 0; i < 6; ++i)
-		user[keys[i]] = rows.Get(row, i);
-	user["enabled"] = rows.Get(row, 6) == "t";
-	user["version"] = rows.Get(row, 7);
-	return user;
-}
 } // namespace
 
 void AccountStore::RequireFields(const Json::Value& body, std::initializer_list<const char*> allowed)
@@ -116,45 +107,12 @@ Json::Value AccountStore::Session(const std::string& token, const std::string& c
 
 Reply AccountStore::Login(const Json::Value& body, const std::string& oldToken)
 {
-	RequireFields(body, {"email", "password"});
-	const auto email	= NormalizedEmail(Field(body, "email", 3, 254));
-	const auto password = Field(body, "password", 1, 128);
-	const auto credentials =
-		m_Database.Query("SELECT id,password_hash,enabled FROM accounts.users WHERE email=$1", {email});
-	const auto encoded =
-		credentials.Count() && !credentials.Get(0, 1).empty() ? credentials.Get(0, 1) : m_Settings.dummyPasswordHash;
-	const bool correct = VerifyPassword(password, encoded);
-	if (!correct || !credentials.Count() || credentials.Get(0, 2) != "t")
-		throw RequestError(401, "Email or password is incorrect");
-
+	AccountRepository repository(m_Database);
+	LoginService service(repository, m_Settings.dummyPasswordHash, m_Settings.idleSeconds, m_Settings.absoluteSeconds);
+	const auto login = service.VerifyCredentials(body);
 	Transaction transaction(m_Database);
 	m_Database.Query("SELECT pg_advisory_xact_lock(70123002)");
-	const auto rows =
-		m_Database.Query("SELECT id,email,display_name,phone,locale,role,enabled,version FROM accounts.users "
-						 "WHERE id=$1::bigint AND password_hash=$2 AND enabled FOR UPDATE",
-						 {credentials.Get(0, 0), encoded});
-	if (!rows.Count())
-		throw RequestError(401, "Email or password is incorrect");
-	m_Database.Query(
-		"DELETE FROM accounts.sessions WHERE expires_at<=now() OR last_seen<=now()-make_interval(secs=>$1::int)",
-		{std::to_string(m_Settings.idleSeconds)});
-	if (!oldToken.empty())
-		m_Database.Query("DELETE FROM accounts.sessions WHERE token_hash=$1", {TokenHash(oldToken)});
-	// Keep at most five devices per account, including the new session.
-	m_Database.Query("DELETE FROM accounts.sessions WHERE token_hash IN (SELECT token_hash FROM accounts.sessions "
-					 "WHERE user_id=$1::bigint ORDER BY created_at DESC OFFSET 4)",
-					 {rows.Get(0, 0)});
-	Reply reply;
-	reply.sessionToken = RandomToken();
-	const auto csrf	   = RandomToken();
-	m_Database.Query("INSERT INTO accounts.sessions(token_hash,user_id,csrf_token,expires_at) "
-					 "VALUES($1,$2::bigint,$3,now()+make_interval(secs=>$4::int))",
-					 {TokenHash(reply.sessionToken), rows.Get(0, 0), csrf, std::to_string(m_Settings.absoluteSeconds)});
-	Audit(rows.Get(0, 0), rows.Get(0, 0), "login");
-	// Activity does not change the version used for optimistic profile edits.
-	m_Database.Query("UPDATE accounts.users SET last_login_at=now() WHERE id=$1::bigint", {rows.Get(0, 0)});
-	reply.body["user"]		= User(rows, 0);
-	reply.body["csrfToken"] = csrf;
+	auto reply = service.IssueSession(login, oldToken);
 	transaction.Commit();
 	return reply;
 }

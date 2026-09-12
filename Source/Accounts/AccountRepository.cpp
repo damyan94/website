@@ -195,4 +195,59 @@ std::optional<std::string> AccountRepository::ResetPasswordByEmail(const std::st
 		return std::nullopt;
 	return rows.Get(0, 0);
 }
+
+std::optional<LoginCredentials> AccountRepository::FindLoginCredentials(const std::string& email)
+{
+	const auto rows = m_Database.Query("SELECT id,password_hash,enabled FROM accounts.users WHERE email=$1", {email});
+	if (!rows.Count())
+		return std::nullopt;
+	return LoginCredentials{rows.Get(0, 0), rows.Get(0, 1), rows.Get(0, 2) == "t"};
+}
+
+std::optional<LoginUser> AccountRepository::LockLoginUser(const std::string& user, const std::string& passwordHash)
+{
+	const auto rows =
+		m_Database.Query("SELECT id,email,display_name,phone,locale,role,enabled,version FROM accounts.users "
+						 "WHERE id=$1::bigint AND password_hash=$2 AND enabled FOR UPDATE",
+						 {user, passwordHash});
+	if (!rows.Count())
+		return std::nullopt;
+	return LoginUser{rows.Get(0, 0),
+					 rows.Get(0, 1),
+					 rows.Get(0, 2),
+					 rows.Get(0, 3),
+					 rows.Get(0, 4),
+					 rows.Get(0, 5),
+					 rows.Get(0, 6) == "t",
+					 rows.Get(0, 7)};
+}
+
+void AccountRepository::DeleteExpiredSessions(int idleSeconds)
+{
+	m_Database.Query(
+		"DELETE FROM accounts.sessions WHERE expires_at<=now() OR last_seen<=now()-make_interval(secs=>$1::int)",
+		{std::to_string(idleSeconds)});
+}
+
+void AccountRepository::DeleteOlderSessionsForLogin(const std::string& user)
+{
+	m_Database.Query("DELETE FROM accounts.sessions WHERE token_hash IN (SELECT token_hash FROM accounts.sessions "
+					 "WHERE user_id=$1::bigint ORDER BY created_at DESC OFFSET 4)",
+					 {user});
+}
+
+void AccountRepository::CreateSession(const std::string& tokenHash,
+									  const std::string& user,
+									  const std::string& csrf,
+									  int absoluteSeconds)
+{
+	m_Database.Query("INSERT INTO accounts.sessions(token_hash,user_id,csrf_token,expires_at) "
+					 "VALUES($1,$2::bigint,$3,now()+make_interval(secs=>$4::int))",
+					 {tokenHash, user, csrf, std::to_string(absoluteSeconds)});
+}
+
+void AccountRepository::UpdateLastLogin(const std::string& user)
+{
+	m_Database.Query("UPDATE accounts.users SET last_login_at=now() WHERE id=$1::bigint", {user});
+}
 } // namespace Accounts

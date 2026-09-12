@@ -774,6 +774,10 @@ def main():
                     assert all(pool.map(lambda _: Client().request('/health')[0] == {'status':'ok'}, range(40)))
                 print('PASS: admin assets/private paths, pagination, stored hashes, audit, persistent sessions and public health concurrency', flush=True)
 
+                from login_session_checks import check_login_sessions
+                check_login_sessions(Client, password, sql, pg/'psql', env,
+                                     json.loads(config.read_text())['custom_config']['accounts']['absolute_seconds'])
+
                 # Two administrators cannot concurrently remove each other's access.
                 second = Client(); second.login('admin2@example.test',other_password)
                 current_admin = admin.request('/api/v1/me')[0]['user']

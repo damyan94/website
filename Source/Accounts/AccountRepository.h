@@ -49,6 +49,25 @@ struct SessionRecord
 	std::string csrfToken;
 };
 
+struct LoginCredentials
+{
+	std::string userId;
+	std::string passwordHash;
+	bool enabled;
+};
+
+struct LoginUser
+{
+	std::string id;
+	std::string email;
+	std::string displayName;
+	std::string phone;
+	std::string locale;
+	std::string role;
+	bool enabled;
+	std::string version;
+};
+
 // Borrows the current worker's connection and participates in its caller's transaction.
 class AccountRepository
 {
@@ -85,6 +104,16 @@ public:
 	void UpdatePassword(const std::string& user, const std::string& passwordHash);
 
 	std::optional<std::string> ResetPasswordByEmail(const std::string& email, const std::string& passwordHash);
+
+	std::optional<LoginCredentials> FindLoginCredentials(const std::string& email);
+	std::optional<LoginUser> LockLoginUser(const std::string& user, const std::string& passwordHash);
+	void DeleteExpiredSessions(int idleSeconds);
+	void DeleteOlderSessionsForLogin(const std::string& user);
+	void CreateSession(const std::string& tokenHash,
+					   const std::string& user,
+					   const std::string& csrf,
+					   int absoluteSeconds);
+	void UpdateLastLogin(const std::string& user);
 
 private:
 	Database& m_Database;
