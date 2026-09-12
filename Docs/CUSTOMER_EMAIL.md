@@ -273,6 +273,13 @@ across restarts; numeric Retry-After values up to one day are honored. Credentia
 permission failures stop that job and pause provider requests for five minutes.
 Other permanent rejections stop that job immediately.
 
+`Accounts::EmailWorker` owns claiming, eligibility checks, persisted payload/key
+snapshots, retry decisions and delivery reconciliation. `ResendTransport` owns the
+HTTP client lifecycle, request submission and bounded response decoding;
+`LocalOutboxTransport` owns the directory lock and atomic file delivery. The worker
+selects the configured transport and joins its thread before releasing transport
+resources. Neither transport accesses the database or retries a delivery.
+
 Campaign preview stores a draft with an idempotency key bound to its author and
 content. Queueing checks the displayed recipient count again; a changed count
 requires another preview. It then snapshots the currently eligible recipients

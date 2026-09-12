@@ -57,6 +57,8 @@ if(WEBSITE_ENABLE_ACCOUNTS)
 		Source/Accounts/Configuration.cpp
 		Source/Accounts/Provisioning.cpp
 		Source/Accounts/Email.cpp
+		Source/Accounts/ResendTransport.cpp
+		Source/Accounts/LocalOutboxTransport.cpp
 		Source/Accounts/AccountStoreEmail.cpp
 	)
 	target_include_directories(WebSiteBackend PRIVATE ${ARGON2_INCLUDE_DIR})

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "Database.h"
+#include "LocalOutboxTransport.h"
+#include "ResendTransport.h"
 #include <condition_variable>
-#include <drogon/HttpClient.h>
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <thread>
-#include <trantor/net/EventLoopThread.h>
 
 namespace Accounts
 {
@@ -67,12 +67,11 @@ private:
 	std::string								  m_Connection;
 	EmailSettings							  m_Settings;
 	ScheduledEmailHooks						  m_Hooks;
-	std::unique_ptr<trantor::EventLoopThread> m_HttpLoop;
-	drogon::HttpClientPtr					  m_HttpClient;
+	ResendTransport							  m_ResendTransport;
 	std::mutex								  m_Mutex;
 	std::condition_variable					  m_Condition;
 	bool									  m_Stopping = false;
 	std::thread								  m_Worker;
-	int										  m_Lock = -1;
+	LocalOutboxTransport					  m_LocalOutboxTransport;
 };
 } // namespace Accounts

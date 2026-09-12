@@ -6,11 +6,6 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <sstream>
-#ifndef _WIN32
-#include <fcntl.h>
-#include <sys/file.h>
-#include <unistd.h>
-#endif
 
 namespace Accounts
 {
@@ -140,75 +135,6 @@ void ApplyEmailEvents(Database& database, const std::string& providerId)
 					   {job.Get(0, 1), type});
 }
 
-namespace
-{
-#ifndef _WIN32
-class File
-{
-public:
-	explicit File(int descriptor)
-		: fd(descriptor)
-	{
-		if (fd < 0)
-			throw std::runtime_error("Email outbox is unavailable");
-	}
-
-	~File()
-	{
-		if (fd >= 0)
-			::close(fd);
-	}
-
-	File(const File&)			 = delete;
-	File& operator=(const File&) = delete;
-	int	  fd;
-};
-
-void Sync(int fd)
-{
-	while (::fsync(fd) != 0)
-		if (errno != EINTR)
-			throw std::runtime_error("Email outbox sync failed");
-}
-
-void WriteMessage(const std::filesystem::path& path, const Json::Value& message)
-{
-	Json::StreamWriterBuilder writer;
-	writer["indentation"] = "  ";
-	writer["emitUTF8"]	  = true;
-	const auto bytes	  = Json::writeString(writer, message) + '\n';
-	const auto temp		  = path.parent_path() / (".mail-" + RandomToken() + ".tmp");
-	File	   file(::open(temp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
-
-	struct Cleanup
-	{
-		std::filesystem::path path;
-
-		~Cleanup()
-		{
-			::unlink(path.c_str());
-		}
-	} cleanup{temp};
-
-	std::size_t offset = 0;
-	while (offset < bytes.size())
-	{
-		const auto written = ::write(file.fd, bytes.data() + offset, bytes.size() - offset);
-		if (written < 0 && errno == EINTR)
-			continue;
-		if (written <= 0)
-			throw std::runtime_error("Email outbox write failed");
-		offset += written;
-	}
-	Sync(file.fd);
-	if (::rename(temp.c_str(), path.c_str()) != 0)
-		throw std::runtime_error("Email outbox rename failed");
-	File directory(::open(path.parent_path().c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
-	Sync(directory.fd);
-}
-#endif
-} // namespace
-
 EmailWorker::EmailWorker(std::string connection, EmailSettings settings, ScheduledEmailHooks hooks)
 	: m_Connection(std::move(connection)),
 	  m_Settings(std::move(settings)),
@@ -232,19 +158,11 @@ void EmailWorker::Start()
 		database.reset(); // Another backend delivers for this database; take over when its lock is released.
 	if (m_Settings.transport == "local_outbox")
 	{
-		std::filesystem::create_directories(m_Settings.outbox);
-		std::filesystem::permissions(m_Settings.outbox, std::filesystem::perms::owner_all);
-		File lock(
-			::open((m_Settings.outbox / ".worker.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600));
-		if (::flock(lock.fd, LOCK_EX | LOCK_NB) != 0)
-			throw std::runtime_error("Another email worker owns this outbox");
-		m_Lock = std::exchange(lock.fd, -1);
+		m_LocalOutboxTransport.Start(m_Settings.outbox);
 	}
 	else
 	{
-		m_HttpLoop = std::make_unique<trantor::EventLoopThread>();
-		m_HttpLoop->run();
-		m_HttpClient = drogon::HttpClient::newHttpClient(m_Settings.apiOrigin, m_HttpLoop->getLoop(), false, true);
+		m_ResendTransport.Start(m_Settings.apiOrigin);
 	}
 	m_Worker = std::thread([this, database = std::move(database)]() mutable { Run(std::move(database)); });
 #endif
@@ -259,15 +177,8 @@ void EmailWorker::Stop()
 	m_Condition.notify_all();
 	if (m_Worker.joinable())
 		m_Worker.join();
-	m_HttpClient.reset();
-	m_HttpLoop.reset();
-#ifndef _WIN32
-	if (m_Lock >= 0)
-	{
-		::close(m_Lock);
-		m_Lock = -1;
-	}
-#endif
+	m_ResendTransport.Stop();
+	m_LocalOutboxTransport.Stop();
 }
 
 void EmailWorker::Run(std::unique_ptr<Database> database)
@@ -477,39 +388,19 @@ bool EmailWorker::DeliverOne(Database& database)
 	{
 		if (m_Settings.transport == "local_outbox")
 		{
-			WriteMessage(m_Settings.outbox / (id + ".json"), message);
+			m_LocalOutboxTransport.Deliver(m_Settings.outbox / (id + ".json"), message);
 			accepted = true;
 		}
 		else
 		{
-			auto request = drogon::HttpRequest::newHttpRequest();
-			request->setMethod(drogon::Post);
-			request->setPath("/emails");
-			request->setContentTypeCode(drogon::CT_APPLICATION_JSON);
-			request->addHeader("Authorization", "Bearer " + m_Settings.apiKey);
-			request->addHeader("Idempotency-Key", deliveryKey);
-			request->setBody(requestBody);
-			const auto [result, response] = m_HttpClient->sendRequest(request, m_Settings.requestSeconds);
+			const auto [result, response] =
+				m_ResendTransport.Send(m_Settings.apiKey, deliveryKey, requestBody, m_Settings.requestSeconds);
 			if (result != drogon::ReqResult::Ok || !response)
 				error = result == drogon::ReqResult::Timeout ? "provider_timeout" : "provider_connection_failed";
 			else
 			{
 				status = response->statusCode();
-				Json::Value				parsedBody;
-				Json::CharReaderBuilder builder;
-				builder["collectComments"] = false;
-				builder["rejectDupKeys"]   = true;
-				builder["failIfExtra"]	   = true;
-				builder["stackLimit"]	   = 8;
-				std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-				std::string						  parseErrors;
-				const auto						  bytes = response->body();
-				const auto*						  json =
-					  bytes.size() <= 32768 &&
-							  reader->parse(bytes.data(), bytes.data() + bytes.size(), &parsedBody, &parseErrors) &&
-							  parsedBody.isObject()
-											  ? &parsedBody
-											  : nullptr;
+				const auto json = ResendTransport::DecodeResponse(response);
 				if (status >= 200 && status < 300)
 				{
 					if (json && (*json)["id"].isString())
