@@ -1,4 +1,5 @@
 #include "ReservationService.h"
+#include "ReservationRepository.h"
 #include "Validation.h"
 #include "Accounts/Crypto.h"
 #include "InputValidation.h"
@@ -252,20 +253,11 @@ Json::Value ReservationService::Availability(Accounts::Database& db,
 
 Json::Value ReservationService::Read(Accounts::Database& db, const std::string& id) const
 {
-	const auto rows = db.Query(R"SQL(
-        SELECT jsonb_build_object('id',id::text,'userId',user_id::text,'contactName',contact_name,
-        'contactEmail',contact_email,'contactPhone',contact_phone,'locale',locale,'serviceId',service_id,
-        'serviceTitle',service_title,'durationMinutes',duration_minutes,'priceMinor',price_minor,'currency',currency,
-        'startsAt',to_char(starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-        'endsAt',to_char(ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-        'therapistId',therapist_id,'roomId',room_id,'state',state,'version',version::text,
-        'canCancel',state='confirmed' AND starts_at>=now()+make_interval(hours=>$2::int))::text
-        FROM reservations.appointments WHERE id=$1::bigint
-    )SQL",
-							   {id, m_Settings["cancel_hours"].asString()});
-	if (!rows.Count())
+	ReservationRepository repository(db);
+	auto appointment = repository.Read(id, m_Settings["cancel_hours"].asString());
+	if (!appointment)
 		throw RequestError(404, "Reservation not found");
-	return Parse(rows.Get(0, 0));
+	return std::move(*appointment);
 }
 
 void ReservationService::Occupy(Accounts::Database& db, const std::string& id) const
@@ -408,39 +400,34 @@ Json::Value ReservationService::ListAppointments(Accounts::Database&	   db,
 										 bool					   calendar)
 {
 	Json::Value result(Json::objectValue);
-	const int				 requested = body.isMember("page") ? QueryNumber(body["page"], 1, 1000000) : 1;
-	std::string				 condition;
-	std::vector<std::string> args;
+	const int requested = body.isMember("page") ? QueryNumber(body["page"], 1, 1000000) : 1;
+	bool history = false;
+	std::string date, timezone;
+	int days = 0;
 	if (!calendar)
 	{
 		const auto scope = Text(body.get("scope", "upcoming"));
 		if (scope != "upcoming" && scope != "history")
 			throw RequestError(400, "Invalid history scope");
-		condition = "user_id=$1::bigint AND " + std::string(scope == "history" ? "NOT " : "") +
-					"(state='confirmed' AND ends_at>now())";
-		args = {actor.id};
+		history = scope == "history";
 	}
 	else
 	{
 		if (!Staff(actor))
 			throw RequestError(403, "Staff access required");
-		const int days = QueryNumber(body["days"], 1, 7);
-		condition = "starts_at>=($1::date::timestamp AT TIME ZONE $2) AND starts_at<(($1::date+$3::int)::timestamp "
-					"AT TIME ZONE $2)";
-		args	  = {Date(body["date"]), m_Settings["timezone"].asString(), std::to_string(days)};
+		days = QueryNumber(body["days"], 1, 7);
+		date = Date(body["date"]);
+		timezone = m_Settings["timezone"].asString();
 	}
-	const auto total = std::stoi(
-		db.Query(("SELECT count(*) FROM reservations.appointments WHERE " + condition).c_str(), args).Get(0, 0));
+	ReservationRepository repository(db);
+	const auto total = calendar ? repository.CountCalendar(date, timezone, days)
+							   : repository.CountForUser(actor.id, history);
 	const int pages = std::max(1, (total + 49) / 50), page = std::min(requested, pages);
-	args.push_back(std::to_string((page - 1) * 50));
-	const auto rows = db.Query(("SELECT id FROM reservations.appointments WHERE " + condition + " ORDER BY starts_at " +
-								(!calendar && body.get("scope", "upcoming") == "history" ? "DESC" : "ASC") +
-								",id LIMIT 50 OFFSET $" + std::to_string(args.size()) + "::int")
-								   .c_str(),
-							   args);
+	const auto ids = calendar ? repository.ListCalendarIds(date, timezone, days, (page - 1) * 50)
+							 : repository.ListIdsForUser(actor.id, history, (page - 1) * 50);
 	result["appointments"] = Json::arrayValue;
-	for (int i = 0; i < rows.Count(); ++i)
-		result["appointments"].append(Read(db, rows.Get(i, 0)));
+	for (const auto& id : ids)
+		result["appointments"].append(Read(db, id));
 	result["page"]	= page;
 	result["pages"] = pages;
 	result["total"] = total;

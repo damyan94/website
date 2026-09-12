@@ -6,8 +6,8 @@
 
 namespace Reservations
 {
-// HTTP workflows use the caller's authenticated transaction. Persistence,
-// availability and reminder methods stay together in this first extraction.
+// HTTP workflows use the caller's authenticated transaction. Appointment reads
+// delegate to ReservationRepository; mutation, availability and reminder SQL stay here.
 class ReservationService
 {
 public:

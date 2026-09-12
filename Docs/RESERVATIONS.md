@@ -182,10 +182,13 @@ request-shape checks and HTTP response/status construction. The service retains
 business validation, authorization, idempotency and workflow sequencing.
 
 HTTP work still runs inside the existing account dispatcher's authenticated
-transaction. SQL remains embedded in the service's existing business methods;
-repository, availability and notification extraction are deferred. The reminder
-hook retains its separate transaction and delivery-eligibility checks. No schema
-migration is required by this refactor.
+transaction. `ReservationRepository` borrows that call's database connection for
+appointment snapshots, list counts and paged appointment IDs. It owns their SQL
+and row conversion without opening or committing transactions. List validation,
+authorization, page clamping and response assembly remain in the service.
+Mutation, availability, catalog date-bound and notification SQL remain in the
+service; their extraction is deferred. The reminder hook retains its separate
+transaction and delivery-eligibility checks. No schema migration is required.
 
 Existing validation functions shared by configuration and request handling live
 in `Source/Reservations/Validation.h`. Phone-character and decimal-identifier checks
