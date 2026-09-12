@@ -14,6 +14,26 @@ def check_reservations(Client, admin, customer, operator, anonymous, sql, config
     anonymous.request('/api/v1/reservations/options', expected=401)
     anonymous.request('/api/v1/reservations', 'POST', {}, expected=401)
     customer.request('/api/v1/admin/reservations?date=2026-09-10&days=7', expected=403)
+    anonymous.request('/api/v1/reservations/options?unexpected=1', expected=401)
+    customer.request('/api/v1/admin/reservations?unexpected=1', expected=403)
+    operator.request('/api/v1/admin/reservations?unexpected=1', expected=400)
+    session_query = "SELECT token_hash,last_seen FROM accounts.sessions WHERE user_id=(SELECT id FROM accounts.users WHERE email='customer2@example.test') ORDER BY token_hash"
+    sessions_before = sql(session_query)
+    error, _ = customer.request('/api/v1/reservations/options?unexpected=1', expected=400)
+    assert error == {'error':'Unexpected field'} and sql(session_query) == sessions_before
+
+    # Provisioning must reject invalid settings before changing persistent resources.
+    original_config = json.loads(config_file.read_text())
+    invalid_config = config_file.with_name('invalid-reservations.json')
+    resources_before = sql('SELECT id,kind FROM reservations.resources ORDER BY id')
+    for changes in [{'slot_minutes':7}, {'resources':[]}, {'reminders_enabled':'true'},
+                    {'reminder_hours':0}, {'timezone':'Invalid/ReservationZone'}]:
+        candidate = json.loads(json.dumps(original_config))
+        candidate['custom_config']['reservations'].update(changes)
+        invalid_config.write_text(json.dumps(candidate))
+        command(invalid_config, '--migrate-reservations', success=False)
+        assert sql('SELECT id,kind FROM reservations.resources ORDER BY id') == resources_before
+    print('PASS: reservation authorization before endpoint validation, rejected-request rollback and invalid provisioning settings', flush=True)
     options = customer.request('/api/v1/reservations/options')[0]
     assert options['timezone'] == 'Europe/Sofia'
     assert {s['id'] for s in options['services']} == {'relax', 'deep-tissue'}
@@ -47,6 +67,8 @@ def check_reservations(Client, admin, customer, operator, anonymous, sql, config
     customer.request('/api/v1/reservations', 'POST', body, expected=403, headers={'Origin': 'https://evil.example'})
     customer.request('/api/v1/reservations', 'POST', {**body, 'priceMinor': 1}, expected=400)
     customer.request('/api/v1/reservations', 'POST', {**body, 'guest': {}}, expected=403)
+    error, _ = customer.request('/api/v1/reservations', 'POST', {**body, 'guest': {}, 'unexpected':True}, expected=400)
+    assert error == {'error':'Unexpected field'}
     created = customer.request('/api/v1/reservations', 'POST', body, expected=201)[0]['appointment']
     assert created['priceMinor'] == 4000 and created['userId'] == customer.request('/api/v1/me')[0]['user']['id']
     assert created['contactEmail'] == 'customer2@example.test'

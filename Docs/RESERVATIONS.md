@@ -174,12 +174,23 @@ rejects overlapping occupancy for each resource. The current implementation shar
 the existing per-site transaction lock: appropriate for small-business writes,
 but not a claim of benchmarked high-volume booking throughput.
 
-The C++ module dispatches to separate options, availability, listing, creation and
-update handlers. Private helpers handle booking contacts, slot selection, audit
-events, rescheduling and state changes. Phone-character and decimal-identifier
-checks are shared with accounts through `Source/InputValidation.h`; field-specific
-errors remain with each caller. All reservation helpers use the transaction owned
-by the existing account dispatcher. This refactor requires no schema migration.
+`Reservations::Module` composes `Configuration`, `Controller` and
+`ReservationService`, registers routes, and retains shared ownership for route and
+email callbacks. `Configuration` validates deployment settings and runs the existing
+schema/resource provisioning checks. The controller owns endpoint dispatch, initial
+request-shape checks and HTTP response/status construction. The service retains
+business validation, authorization, idempotency and workflow sequencing.
+
+HTTP work still runs inside the existing account dispatcher's authenticated
+transaction. SQL remains embedded in the service's existing business methods;
+repository, availability and notification extraction are deferred. The reminder
+hook retains its separate transaction and delivery-eligibility checks. No schema
+migration is required by this refactor.
+
+Existing validation functions shared by configuration and request handling live
+in `Source/Reservations/Validation.h`. Phone-character and decimal-identifier checks
+continue to use `Source/InputValidation.h`; field-specific errors and their ordering
+remain with each caller.
 
 Instants are stored in UTC. Availability walks actual UTC minutes and checks each
 minute against local schedules, including both DST transitions: nonexistent local

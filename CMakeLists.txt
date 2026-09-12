@@ -79,6 +79,11 @@ if(WEBSITE_ENABLE_RESERVATIONS)
 	if(NOT WEBSITE_ENABLE_ACCOUNTS)
 		message(FATAL_ERROR "Reservations require WEBSITE_ENABLE_ACCOUNTS=ON")
 	endif()
-	target_sources(WebSiteBackend PRIVATE Source/Reservations/Module.cpp)
+	target_sources(WebSiteBackend PRIVATE
+		Source/Reservations/Module.cpp
+		Source/Reservations/Configuration.cpp
+		Source/Reservations/ReservationService.cpp
+		Source/Reservations/Controller.cpp
+	)
 endif()
 target_compile_definitions(WebSiteBackend PRIVATE WEBSITE_ENABLE_RESERVATIONS=$<BOOL:${WEBSITE_ENABLE_RESERVATIONS}>)
