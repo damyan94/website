@@ -260,17 +260,6 @@ Json::Value ReservationService::Read(Accounts::Database& db, const std::string& 
 	return std::move(*appointment);
 }
 
-void ReservationService::Occupy(Accounts::Database& db, const std::string& id) const
-{
-	db.Query("INSERT INTO reservations.occupancy(appointment_id,resource_id,during) "
-			 "SELECT "
-			 "id,resource,tstzrange(starts_at-make_interval(mins=>buffer_before),ends_at+make_interval(mins=>buffer_"
-			 "after),'[)') "
-			 "FROM reservations.appointments CROSS JOIN LATERAL unnest(ARRAY[therapist_id,room_id]) resource WHERE "
-			 "id=$1::bigint",
-			 {id});
-}
-
 std::string ReservationService::Notify(Accounts::Database& db, const Json::Value& appointment, const std::string& action) const
 {
 	if (!m_Accounts.email.enabled || appointment["contactEmail"].asString().empty())
@@ -444,47 +433,41 @@ std::pair<Json::Value, bool> ReservationService::CreateAppointment(Accounts::Dat
 	if (!guestBooking && actor.role != "customer")
 		throw RequestError(403, "Only customers can book for themselves; staff must enter a guest");
 	const auto key = Id(body["requestKey"]), hash = Accounts::TokenHash(Serialize(body));
-	const auto existing =
-		db.Query("SELECT id,request_hash FROM reservations.appointments WHERE actor_id=$1::bigint AND request_key=$2",
-				 {actor.id, key});
-	if (existing.Count())
+	ReservationRepository repository(db);
+	const auto existing = repository.FindRequest(actor.id, key);
+	if (existing)
 	{
-		if (existing.Get(0, 1) != hash)
+		if (existing->requestHash != hash)
 			throw RequestError(409, "Request key was already used for different reservation details");
-		return {Read(db, existing.Get(0, 0)), false};
+		return {Read(db, existing->id), false};
 	}
 	const auto contact	= ContactForBooking(db, actor, body);
 	const auto service	= Id(body["serviceId"]);
 	const auto offer	= FindOffer(service, Number(body["durationMinutes"], 5, 240), Text(body["revision"], 64, 64));
 	const auto start	= Text(body["startsAt"], 20, 20);
 	const auto selected = SelectSlot(db, body, offer);
-	const auto row		= db.Query(R"SQL(
-            INSERT INTO reservations.appointments(actor_id,request_key,request_hash,user_id,contact_name,contact_email,contact_phone,locale,
-                service_id,service_title,duration_minutes,price_minor,currency,starts_at,ends_at,therapist_id,room_id,buffer_before,buffer_after)
-            VALUES($1::bigint,$2,$3,NULLIF($4,'')::bigint,$5,$6,$7,$8,$9,$10::jsonb,$11::int,$12::bigint,$13,$14::timestamptz,
-                $14::timestamptz+make_interval(mins=>$11::int),$15,$16,$17::int,$18::int) RETURNING id
-        )SQL",
-							   {actor.id,
-									key,
-									hash,
-									contact.userId,
-									contact.name,
-									contact.email,
-									contact.phone,
-									contact.locale,
-									service,
-									Serialize(offer.title),
-									std::to_string(offer.duration),
-									std::to_string(offer.price),
-									offer.currency,
-									start,
-									selected["therapistId"].asString(),
-									selected["roomId"].asString(),
-									offer.rule["buffer_before"].asString(),
-									offer.rule["buffer_after"].asString()});
-	const auto id		= row.Get(0, 0);
-	Occupy(db, id);
-	RecordEvent(db, actor, id, "created");
+	AppointmentCreation creation;
+	creation.actorId = actor.id;
+	creation.requestKey = key;
+	creation.requestHash = hash;
+	creation.userId = contact.userId;
+	creation.contactName = contact.name;
+	creation.contactEmail = contact.email;
+	creation.contactPhone = contact.phone;
+	creation.locale = contact.locale;
+	creation.serviceId = service;
+	creation.serviceTitle = offer.title;
+	creation.durationMinutes = offer.duration;
+	creation.priceMinor = offer.price;
+	creation.currency = offer.currency;
+	creation.startsAt = start;
+	creation.therapistId = selected["therapistId"].asString();
+	creation.roomId = selected["roomId"].asString();
+	creation.bufferBefore = offer.rule["buffer_before"].asInt();
+	creation.bufferAfter = offer.rule["buffer_after"].asInt();
+	const auto id = repository.CreateAppointment(creation);
+	repository.InsertOccupancy(id);
+	repository.RecordEvent(id, actor.id, "created");
 	auto appointment = Read(db, id);
 	Notify(db, appointment, "confirmed");
 	return {std::move(appointment), true};
@@ -506,11 +489,9 @@ Json::Value ReservationService::UpdateAppointment(Accounts::Database&		db,
 		Reschedule(db, actor, appointment, body);
 	else
 		ChangeState(db, actor, appointment, body);
-	db.Query("UPDATE accounts.mail_jobs SET state='skipped',last_error='appointment_changed',body='',request_body=NULL,"
-			 "unsubscribe_token=NULL,finished_at=now() WHERE state='queued' AND id IN "
-			 "(SELECT mail_job_id FROM reservations.reminders WHERE appointment_id=$1::bigint)",
-			 {id});
-	RecordEvent(db, actor, id, change);
+	ReservationRepository repository(db);
+	repository.SkipQueuedReminders(id);
+	repository.RecordEvent(id, actor.id, change);
 	appointment = Read(db, id);
 	Notify(db, appointment, change == "reschedule" ? "rescheduled" : change);
 	return appointment;
@@ -540,19 +521,16 @@ ReservationService::BookingContact ReservationService::ContactForBooking(Account
 	}
 	else
 	{
-		const auto row = db.Query("SELECT display_name,email,phone,locale,email_verified_at IS NOT NULL FROM "
-								  "accounts.users WHERE id=$1::bigint",
-								  {contact.userId});
-		if (row.Get(0, 4) != "t")
+		ReservationRepository repository(db);
+		const auto customer = repository.ReadBookingCustomer(contact.userId);
+		if (!customer.emailVerified)
 			throw RequestError(403, "Verify your email in My profile before booking");
-		contact.name	 = row.Get(0, 0);
-		contact.email	 = row.Get(0, 1);
-		contact.phone	 = row.Get(0, 2);
-		contact.locale	 = row.Get(0, 3);
-		const auto count = db.Query("SELECT count(*) FROM reservations.appointments WHERE user_id=$1::bigint AND "
-									"state='confirmed' AND ends_at>now()",
-									{contact.userId});
-		if (std::stoi(count.Get(0, 0)) >= m_Settings["max_future_per_customer"].asInt())
+		contact.name = customer.name;
+		contact.email = customer.email;
+		contact.phone = customer.phone;
+		contact.locale = customer.locale;
+		const auto count = repository.CountUpcomingForCustomer(contact.userId);
+		if (count >= m_Settings["max_future_per_customer"].asInt())
 			throw RequestError(409, "Maximum number of upcoming reservations reached");
 	}
 	return contact;
@@ -573,15 +551,6 @@ Json::Value ReservationService::SelectSlot(Accounts::Database& db,
 									   : "This time is no longer available");
 }
 
-void ReservationService::RecordEvent(Accounts::Database&	   db,
-						 const Accounts::Identity& actor,
-						 const std::string&		   id,
-						 const std::string&		   action) const
-{
-	db.Query("INSERT INTO reservations.events(appointment_id,actor_id,action) VALUES($1::bigint,$2::bigint,$3)",
-			 {id, actor.id, action});
-}
-
 void ReservationService::Reschedule(Accounts::Database&		  db,
 						const Accounts::Identity& actor,
 						const Json::Value&		  appointment,
@@ -595,19 +564,16 @@ void ReservationService::Reschedule(Accounts::Database&		  db,
 		appointment["serviceId"].asString(), appointment["durationMinutes"].asInt(), Text(body["revision"], 64, 64));
 	const auto start	= Text(body["startsAt"], 20, 20);
 	const auto selected = SelectSlot(db, body, offer, id);
-	db.Query("DELETE FROM reservations.occupancy WHERE appointment_id=$1::bigint", {id});
+	ReservationRepository repository(db);
+	repository.DeleteOccupancy(id);
 	// Rescheduling preserves the originally agreed service and price snapshot.
-	db.Query("UPDATE reservations.appointments SET "
-			 "starts_at=$2::timestamptz,ends_at=$2::timestamptz+make_interval(mins=>duration_minutes),"
-			 "therapist_id=$3,room_id=$4,buffer_before=$5::int,buffer_after=$6::int,version=version+1,updated_at="
-			 "now() WHERE id=$1::bigint",
-			 {id,
-			  start,
-			  selected["therapistId"].asString(),
-			  selected["roomId"].asString(),
-			  offer.rule["buffer_before"].asString(),
-			  offer.rule["buffer_after"].asString()});
-	Occupy(db, id);
+	repository.UpdateSchedule(id,
+							  start,
+							  selected["therapistId"].asString(),
+							  selected["roomId"].asString(),
+							  offer.rule["buffer_before"].asInt(),
+							  offer.rule["buffer_after"].asInt());
+	repository.InsertOccupancy(id);
 }
 
 void ReservationService::ChangeState(Accounts::Database&	   db,
@@ -621,14 +587,13 @@ void ReservationService::ChangeState(Accounts::Database&	   db,
 		throw RequestError(400, "Invalid reservation action");
 	if (!Staff(actor) && (change != "cancelled" || !appointment["canCancel"].asBool()))
 		throw RequestError(403, "Cancellation deadline passed; contact staff");
-	const auto timing =
-		db.Query("SELECT starts_at<=now(),ends_at<=now() FROM reservations.appointments WHERE id=$1::bigint", {id});
-	if ((change == "completed" && timing.Get(0, 1) != "t") || (change == "no_show" && timing.Get(0, 0) != "t"))
+	ReservationRepository repository(db);
+	const auto timing = repository.ReadTiming(id);
+	if ((change == "completed" && !timing.hasEnded) || (change == "no_show" && !timing.hasStarted))
 		throw RequestError(409, "Appointment has not reached that stage yet");
-	db.Query("UPDATE reservations.appointments SET state=$2,version=version+1,updated_at=now() WHERE id=$1::bigint",
-			 {id, change});
+	repository.UpdateState(id, change);
 	if (change == "cancelled")
-		db.Query("DELETE FROM reservations.occupancy WHERE appointment_id=$1::bigint", {id});
+		repository.DeleteOccupancy(id);
 }
 
 } // namespace Reservations

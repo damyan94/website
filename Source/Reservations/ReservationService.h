@@ -6,8 +6,8 @@
 
 namespace Reservations
 {
-// HTTP workflows use the caller's authenticated transaction. Appointment reads
-// delegate to ReservationRepository; mutation, availability and reminder SQL stay here.
+// HTTP workflows use the caller's authenticated transaction. Appointment persistence
+// delegates to ReservationRepository; business rules, availability and reminders stay here.
 class ReservationService
 {
 public:
@@ -61,10 +61,6 @@ private:
 							   const Json::Value&  body,
 							   const Offer&		   offer,
 							   const std::string&  exclude = "") const;
-	void			RecordEvent(Accounts::Database&		  db,
-								const Accounts::Identity& actor,
-								const std::string&		  id,
-								const std::string&		  action) const;
 	void			Reschedule(Accounts::Database&		 db,
 							   const Accounts::Identity& actor,
 							   const Json::Value&		 appointment,
@@ -73,7 +69,6 @@ private:
 								const Accounts::Identity& actor,
 								const Json::Value&		  appointment,
 								const Json::Value&		  body) const;
-	void			Occupy(Accounts::Database& db, const std::string& id) const;
 	std::string		Notify(Accounts::Database& db, const Json::Value& appointment, const std::string& action) const;
 	bool			Open(const Json::Value& windows, int weekday, int minute) const;
 	bool			Closed(const std::string& date, const std::string& resource) const;

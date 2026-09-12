@@ -68,6 +68,126 @@ std::vector<std::string> ReservationRepository::ListCalendarIds(const std::strin
 	return ListIds(CalendarCondition, {date, timezone, std::to_string(days)}, false, offset);
 }
 
+std::optional<BookingRequest> ReservationRepository::FindRequest(const std::string& actor, const std::string& key)
+{
+	const auto rows = m_Database.Query("SELECT id,request_hash FROM reservations.appointments WHERE actor_id=$1::bigint AND request_key=$2",
+				 {actor, key});
+	if (!rows.Count())
+		return std::nullopt;
+	return BookingRequest{rows.Get(0, 0), rows.Get(0, 1)};
+}
+
+BookingCustomer ReservationRepository::ReadBookingCustomer(const std::string& user)
+{
+	const auto row = m_Database.Query("SELECT display_name,email,phone,locale,email_verified_at IS NOT NULL FROM "
+								  "accounts.users WHERE id=$1::bigint",
+								  {user});
+	return {row.Get(0, 4) == "t", row.Get(0, 0), row.Get(0, 1), row.Get(0, 2), row.Get(0, 3)};
+}
+
+int ReservationRepository::CountUpcomingForCustomer(const std::string& user)
+{
+	const auto count = m_Database.Query("SELECT count(*) FROM reservations.appointments WHERE user_id=$1::bigint AND "
+									"state='confirmed' AND ends_at>now()",
+									{user});
+	return std::stoi(count.Get(0, 0));
+}
+
+std::string ReservationRepository::CreateAppointment(const AppointmentCreation& appointment)
+{
+	Json::StreamWriterBuilder builder;
+	builder["indentation"] = "";
+	const auto title = Json::writeString(builder, appointment.serviceTitle);
+	const auto row = m_Database.Query(R"SQL(
+            INSERT INTO reservations.appointments(actor_id,request_key,request_hash,user_id,contact_name,contact_email,contact_phone,locale,
+                service_id,service_title,duration_minutes,price_minor,currency,starts_at,ends_at,therapist_id,room_id,buffer_before,buffer_after)
+            VALUES($1::bigint,$2,$3,NULLIF($4,'')::bigint,$5,$6,$7,$8,$9,$10::jsonb,$11::int,$12::bigint,$13,$14::timestamptz,
+                $14::timestamptz+make_interval(mins=>$11::int),$15,$16,$17::int,$18::int) RETURNING id
+        )SQL",
+							   {appointment.actorId,
+									appointment.requestKey,
+									appointment.requestHash,
+									appointment.userId,
+									appointment.contactName,
+									appointment.contactEmail,
+									appointment.contactPhone,
+									appointment.locale,
+									appointment.serviceId,
+									title,
+									std::to_string(appointment.durationMinutes),
+									std::to_string(appointment.priceMinor),
+									appointment.currency,
+									appointment.startsAt,
+									appointment.therapistId,
+									appointment.roomId,
+									std::to_string(appointment.bufferBefore),
+									std::to_string(appointment.bufferAfter)});
+	return row.Get(0, 0);
+}
+
+void ReservationRepository::InsertOccupancy(const std::string& id)
+{
+	m_Database.Query("INSERT INTO reservations.occupancy(appointment_id,resource_id,during) "
+			 "SELECT "
+			 "id,resource,tstzrange(starts_at-make_interval(mins=>buffer_before),ends_at+make_interval(mins=>buffer_"
+			 "after),'[)') "
+			 "FROM reservations.appointments CROSS JOIN LATERAL unnest(ARRAY[therapist_id,room_id]) resource WHERE "
+			 "id=$1::bigint",
+			 {id});
+}
+
+void ReservationRepository::DeleteOccupancy(const std::string& id)
+{
+	m_Database.Query("DELETE FROM reservations.occupancy WHERE appointment_id=$1::bigint", {id});
+}
+
+void ReservationRepository::UpdateSchedule(const std::string& id,
+										   const std::string& startsAt,
+										   const std::string& therapist,
+										   const std::string& room,
+										   int bufferBefore,
+										   int bufferAfter)
+{
+	m_Database.Query("UPDATE reservations.appointments SET "
+			 "starts_at=$2::timestamptz,ends_at=$2::timestamptz+make_interval(mins=>duration_minutes),"
+			 "therapist_id=$3,room_id=$4,buffer_before=$5::int,buffer_after=$6::int,version=version+1,updated_at="
+			 "now() WHERE id=$1::bigint",
+			 {id,
+			  startsAt,
+			  therapist,
+			  room,
+			  std::to_string(bufferBefore),
+			  std::to_string(bufferAfter)});
+}
+
+AppointmentTiming ReservationRepository::ReadTiming(const std::string& id)
+{
+	const auto row = m_Database.Query("SELECT starts_at<=now(),ends_at<=now() FROM reservations.appointments WHERE id=$1::bigint", {id});
+	return {row.Get(0, 0) == "t", row.Get(0, 1) == "t"};
+}
+
+void ReservationRepository::UpdateState(const std::string& id, const std::string& state)
+{
+	m_Database.Query("UPDATE reservations.appointments SET state=$2,version=version+1,updated_at=now() WHERE id=$1::bigint",
+			 {id, state});
+}
+
+void ReservationRepository::SkipQueuedReminders(const std::string& id)
+{
+	m_Database.Query("UPDATE accounts.mail_jobs SET state='skipped',last_error='appointment_changed',body='',request_body=NULL,"
+			 "unsubscribe_token=NULL,finished_at=now() WHERE state='queued' AND id IN "
+			 "(SELECT mail_job_id FROM reservations.reminders WHERE appointment_id=$1::bigint)",
+			 {id});
+}
+
+void ReservationRepository::RecordEvent(const std::string& id,
+										const std::string& actor,
+										const std::string& action)
+{
+	m_Database.Query("INSERT INTO reservations.events(appointment_id,actor_id,action) VALUES($1::bigint,$2::bigint,$3)",
+			 {id, actor, action});
+}
+
 int ReservationRepository::Count(const std::string& condition, const std::vector<std::string>& args)
 {
 	return std::stoi(

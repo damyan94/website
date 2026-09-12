@@ -183,12 +183,17 @@ business validation, authorization, idempotency and workflow sequencing.
 
 HTTP work still runs inside the existing account dispatcher's authenticated
 transaction. `ReservationRepository` borrows that call's database connection for
-appointment snapshots, list counts and paged appointment IDs. It owns their SQL
-and row conversion without opening or committing transactions. List validation,
-authorization, page clamping and response assembly remain in the service.
-Mutation, availability, catalog date-bound and notification SQL remain in the
-service; their extraction is deferred. The reminder hook retains its separate
-transaction and delivery-eligibility checks. No schema migration is required.
+appointment reads, booking-contact lookup, request-key lookup, creation, schedule
+and state updates, occupancy changes, events and invalidation of queued reminders.
+It owns their SQL and row conversion without transaction control, reconnects or
+retries. The service retains validation, authorization, replay decisions, version
+and timing checks, page clamping, response assembly and the order of persistence
+and notification calls. Rescheduling still replaces occupancy around the schedule
+update while preserving the original service and price snapshot.
+
+Availability, catalog date-bound and notification SQL remain in the service;
+their extraction is deferred. The reminder hook retains its separate transaction
+and delivery-eligibility checks. No schema migration is required.
 
 Existing validation functions shared by configuration and request handling live
 in `Source/Reservations/Validation.h`. Phone-character and decimal-identifier checks
