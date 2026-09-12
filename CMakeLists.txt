@@ -57,6 +57,7 @@ if(WEBSITE_ENABLE_ACCOUNTS)
 		Source/Accounts/Configuration.cpp
 		Source/Accounts/Provisioning.cpp
 		Source/Accounts/Email.cpp
+		Source/Accounts/MailRepository.cpp
 		Source/Accounts/ResendTransport.cpp
 		Source/Accounts/LocalOutboxTransport.cpp
 		Source/Accounts/AccountStoreEmail.cpp

@@ -1,5 +1,6 @@
 #include "Email.h"
 #include "Crypto.h"
+#include "MailRepository.h"
 #include "stdafx.h"
 #include <charconv>
 #include <json/json.h>
@@ -16,16 +17,10 @@ std::string QueueEmail(Database&		  database,
 					   const std::string& user,
 					   const std::string& challenge)
 {
-	if (std::stoul(database.Query("SELECT count(*) FROM accounts.mail_jobs WHERE state IN ('queued','processing')")
-					   .Get(0, 0)) >= 10000)
+	MailRepository repository(database);
+	if (repository.PendingJobs() >= 10000)
 		throw std::runtime_error("Email queue is full");
-	return database
-		.Query("INSERT INTO accounts.mail_jobs(kind,user_id,challenge_id,recipient,subject,body,expires_at) "
-			   "VALUES($1,NULLIF($2,'')::bigint,NULLIF($3,'')::bigint,$4,$5,$6,"
-			   "COALESCE((SELECT expires_at FROM accounts.email_challenges WHERE "
-			   "id=NULLIF($3,'')::bigint),now()+interval '1 day')) RETURNING id",
-			   {challenge.empty() ? "notice" : "challenge", user, challenge, recipient, subject, body})
-		.Get(0, 0);
+	return repository.InsertJob(challenge.empty() ? "notice" : "challenge", user, challenge, recipient, subject, body);
 }
 
 std::string DecodeWebhookSecret(const std::string& secret)
@@ -101,23 +96,18 @@ bool VerifyEmailWebhook(const std::string& key,
 
 void ApplyEmailEvents(Database& database, const std::string& providerId)
 {
+	MailRepository repository(database);
 	// Serialize with acceptance and early callbacks, even before the job has a provider ID.
-	database.Query("SELECT pg_advisory_xact_lock(hashtextextended($1,70123005))", {providerId});
-	const auto job =
-		database.Query("SELECT id,recipient FROM accounts.mail_jobs WHERE provider_id=$1 FOR UPDATE", {providerId});
-	if (!job.Count())
+	repository.LockProvider(providerId);
+	const auto job = repository.LockProviderJob(providerId);
+	if (!job)
 		return;
 	// Terminal failures/complaints dominate delivery, which dominates transient events.
 	// Repeated and out-of-order callbacks cannot downgrade the result.
-	const auto event =
-		database.Query("SELECT event_type FROM accounts.mail_events WHERE provider_id=$1 ORDER BY CASE event_type "
-					   "WHEN 'email.complained' THEN 6 WHEN 'email.bounced' THEN 5 WHEN 'email.suppressed' THEN 4 "
-					   "WHEN 'email.failed' THEN 3 WHEN 'email.delivered' THEN 2 WHEN 'email.delivery_delayed' THEN 1 "
-					   "ELSE 0 END DESC,occurred_at DESC LIMIT 1",
-					   {providerId});
-	if (!event.Count())
+	const auto event = repository.HighestPriorityEvent(providerId);
+	if (!event)
 		return;
-	const auto type		= event.Get(0, 0);
+	const auto type		= *event;
 	const auto state	= type == "email.complained"							 ? "complained"
 						  : type == "email.bounced"								 ? "bounced"
 						  : type == "email.suppressed" || type == "email.failed" ? "failed"
@@ -125,14 +115,10 @@ void ApplyEmailEvents(Database& database, const std::string& providerId)
 						  : type == "email.delivery_delayed"					 ? "delayed"
 																				 : "accepted";
 	const bool suppress = type == "email.complained" || type == "email.bounced" || type == "email.suppressed";
-	database.Query(
-		"UPDATE accounts.mail_jobs SET state=$2,last_error=$3,body='',request_body=NULL,"
-		"unsubscribe_token=NULL,finished_at=now() WHERE id=$1::bigint",
-		{job.Get(0, 0), state, suppress || type == "email.failed" || type == "email.delivery_delayed" ? type : ""});
+	repository.UpdateEventStatus(
+		job->id, state, suppress || type == "email.failed" || type == "email.delivery_delayed" ? type : "");
 	if (suppress)
-		database.Query("INSERT INTO accounts.mail_suppressions(recipient,reason) VALUES($1,$2) "
-					   "ON CONFLICT(recipient) DO UPDATE SET reason=excluded.reason",
-					   {job.Get(0, 1), type});
+		repository.SuppressRecipient(job->recipient, type);
 }
 
 EmailWorker::EmailWorker(std::string connection, EmailSettings settings, ScheduledEmailHooks hooks)
@@ -154,7 +140,7 @@ void EmailWorker::Start()
 #else
 	auto database = std::make_unique<Database>(m_Connection);
 	database->CheckSchema();
-	if (database->Query("SELECT pg_try_advisory_lock(70123004)").Get(0, 0) != "t")
+	if (!MailRepository(*database).TryLockWorker())
 		database.reset(); // Another backend delivers for this database; take over when its lock is released.
 	if (m_Settings.transport == "local_outbox")
 	{
@@ -200,7 +186,7 @@ void EmailWorker::Run(std::unique_ptr<Database> database)
 			{
 				database = std::make_unique<Database>(m_Connection);
 				database->CheckSchema();
-				if (database->Query("SELECT pg_try_advisory_lock(70123004)").Get(0, 0) != "t")
+				if (!MailRepository(*database).TryLockWorker())
 					throw std::runtime_error("Another email worker owns this database");
 				ownsLock = true;
 			}
@@ -221,8 +207,7 @@ void EmailWorker::Run(std::unique_ptr<Database> database)
 			DeliverOne(*database);
 			if (now >= nextHeartbeat)
 			{
-				database->Query("UPDATE accounts.mail_worker_status SET heartbeat_at=now(),last_error=$1",
-								{schedulerError});
+				MailRepository(*database).UpdateHeartbeat(schedulerError);
 				nextHeartbeat = now + std::chrono::seconds(10);
 			}
 		}
@@ -233,7 +218,7 @@ void EmailWorker::Run(std::unique_ptr<Database> database)
 			{
 				try
 				{
-					database->Query("UPDATE accounts.mail_worker_status SET last_error='delivery_worker_error'");
+					MailRepository(*database).RecordWorkerError();
 				}
 				catch (...)
 				{ /* An unavailable database is visible through the stale heartbeat. */
@@ -255,42 +240,35 @@ bool EmailWorker::DeliverOne(Database& database)
 	(void)database;
 	return false;
 #else
+	MailRepository repository(database);
 	std::string id, subject, body, recipient, kind, unsubscribe, deliveryKey, requestBody;
 	int			attempts = 0;
 	Json::Value message;
 	{
 		Transaction transaction(database);
-		const auto	row = database.Query(
-			 "SELECT id,kind,COALESCE(user_id::text,''),COALESCE(challenge_id::text,''),"
-			 "COALESCE(subscription_generation::text,''),recipient,subject,body,COALESCE(unsubscribe_token,''),attempts,"
-			 "expires_at IS NOT NULL AND expires_at<=now(),COALESCE(transport,''),COALESCE(delivery_key,''),"
-			 "COALESCE(request_body,''),first_attempt_at<now()-interval '23 hours' FROM accounts.mail_jobs "
-			 "WHERE state IN ('queued','processing') AND available_at<=now() AND "
-			 "($1='local_outbox' OR (SELECT pause_until<=now() FROM accounts.mail_worker_status)) "
-			 "ORDER BY (kind='newsletter'),(kind='reminder'),id LIMIT 1 FOR UPDATE SKIP LOCKED",
-			 {m_Settings.transport});
-		if (!row.Count())
+		const auto	row = repository.LockDueJob(m_Settings.transport);
+		if (!row)
 		{
 			transaction.Commit();
 			return false;
 		}
-		id					 = row.Get(0, 0);
-		kind				 = row.Get(0, 1);
-		recipient			 = row.Get(0, 5);
-		subject				 = row.Get(0, 6);
-		body				 = row.Get(0, 7);
-		unsubscribe			 = row.Get(0, 8);
-		attempts			 = std::stoi(row.Get(0, 9));
-		deliveryKey			 = row.Get(0, 12);
-		requestBody			 = row.Get(0, 13);
-		bool		eligible = row.Get(0, 10) != "t";
+		id					 = row->id;
+		kind				 = row->kind;
+		recipient			 = row->recipient;
+		subject				 = row->subject;
+		body				 = row->body;
+		unsubscribe			 = row->unsubscribe;
+		attempts			 = row->attempts;
+		deliveryKey			 = row->deliveryKey;
+		requestBody			 = row->requestBody;
+		bool		eligible = !row->expired;
 		std::string reason	 = eligible ? "ineligible" : "expired";
-		if (!row.Get(0, 11).empty() && row.Get(0, 11) != m_Settings.transport)
+		if (!row->transport.empty() && row->transport != m_Settings.transport)
 		{
 			eligible = false;
 			reason	 = "transport_changed";
 		}
-		if (database.Query("SELECT 1 FROM accounts.mail_suppressions WHERE recipient=$1", {recipient}).Count())
+		if (repository.IsSuppressed(recipient))
 		{
 			eligible = false;
 			reason	 = "recipient_suppressed";
@@ -300,50 +278,28 @@ bool EmailWorker::DeliverOne(Database& database)
 		if (kind == "challenge")
 			eligible =
 				eligible &&
-				database
-					.Query("SELECT c.id FROM accounts.email_challenges c "
-						   "LEFT JOIN accounts.users u ON u.id=c.user_id WHERE c.id=NULLIF($1,'')::bigint AND "
-						   "c.consumed_at IS NULL "
-						   "AND c.expires_at>now() AND (c.purpose<>'register' OR $2::boolean) "
-						   "AND (c.purpose<>'subscribe' OR $3::boolean) "
-						   "AND (c.user_id IS NULL OR (u.enabled AND u.credential_version=c.credential_version))",
-						   {row.Get(0, 3),
-							m_Settings.registration ? "true" : "false",
-							m_Settings.newsletters ? "true" : "false"})
-					.Count();
+				repository.HasCurrentChallenge(row->challenge, m_Settings.registration, m_Settings.newsletters);
 		if (kind == "newsletter")
 		{
 			eligible =
 				eligible && m_Settings.newsletters &&
-				database
-					.Query("SELECT s.user_id FROM accounts.subscriptions s JOIN accounts.users u ON u.id=s.user_id "
-						   "WHERE s.user_id=$1::bigint AND s.generation=$2::bigint AND s.email=$3 AND u.email=$3 "
-						   "AND s.confirmed_at IS NOT NULL AND u.email_verified_at IS NOT NULL AND u.enabled "
-						   "AND u.locale=(SELECT c.locale FROM accounts.campaigns c JOIN accounts.mail_jobs j ON "
-						   "j.campaign_id=c.id WHERE j.id=$4::bigint)",
-						   {row.Get(0, 2), row.Get(0, 4), recipient, id})
-					.Count();
+				repository.HasCurrentSubscription(row->user, row->generation, recipient, id);
 			if (eligible && unsubscribe.empty())
 			{
 				unsubscribe = RandomToken();
-				database.Query("INSERT INTO accounts.newsletter_links(token_hash,user_id,generation) "
-							   "VALUES($1,$2::bigint,$3::bigint)",
-							   {TokenHash(unsubscribe), row.Get(0, 2), row.Get(0, 4)});
+				repository.InsertNewsletterLink(TokenHash(unsubscribe), row->user, row->generation);
 				body += "\n\nUnsubscribe / Отписване:\n" + m_Settings.origin +
 						"/email#action=unsubscribe&token=" + unsubscribe;
 			}
 		}
-		const bool retryExpired = m_Settings.transport == "resend" && row.Get(0, 14) == "t";
+		const bool retryExpired = m_Settings.transport == "resend" && row->retryWindowExpired;
 		if (!eligible || attempts >= 5 || retryExpired)
 		{
-			database.Query("UPDATE accounts.mail_jobs SET "
-						   "state=$2,body='',request_body=NULL,unsubscribe_token=NULL,finished_at=now(),last_error=$3 "
-						   "WHERE id=$1::bigint",
-						   {id,
-							eligible ? "failed" : "skipped",
-							retryExpired ? "retry_window_expired"
-							: eligible	 ? "attempts_exhausted"
-										 : reason});
+			repository.FinishUnsentJob(id,
+									   eligible ? "failed" : "skipped",
+									   retryExpired ? "retry_window_expired"
+									   : eligible	? "attempts_exhausted"
+													: reason);
 			transaction.Commit();
 			return true;
 		}
@@ -372,12 +328,7 @@ bool EmailWorker::DeliverOne(Database& database)
 			writer["indentation"] = "";
 			requestBody			  = Json::writeString(writer, payload);
 		}
-		database.Query(
-			"UPDATE accounts.mail_jobs SET "
-			"state='processing',attempts=attempts+1,available_at=now()+interval '5 minutes',"
-			"body=$2,unsubscribe_token=NULLIF($3,''),transport=$4,delivery_key=$5,request_body=NULLIF($6,''),"
-			"first_attempt_at=COALESCE(first_attempt_at,now()) WHERE id=$1::bigint",
-			{id, body, unsubscribe, m_Settings.transport, deliveryKey, requestBody});
+		repository.RecordAttempt(id, body, unsubscribe, m_Settings.transport, deliveryKey, requestBody);
 		transaction.Commit();
 	}
 	// No SQL transaction is held during network/filesystem I/O.
@@ -442,31 +393,18 @@ bool EmailWorker::DeliverOne(Database& database)
 	if (accepted)
 	{
 		if (!providerId.empty())
-			database.Query("SELECT pg_advisory_xact_lock(hashtextextended($1,70123005))", {providerId});
-		database.Query(
-			"UPDATE accounts.mail_jobs SET "
-			"state=$2,provider_id=NULLIF($3,''),last_error='',status_code=NULLIF($4,'0')::integer,"
-			"body='',request_body=NULL,unsubscribe_token=NULL,finished_at=now() WHERE id=$1::bigint AND "
-			"state='processing'",
-			{id, m_Settings.transport == "resend" ? "accepted" : "delivered", providerId, std::to_string(status)});
+			repository.LockProvider(providerId);
+		repository.CompleteDelivery(
+			id, m_Settings.transport == "resend" ? "accepted" : "delivered", providerId, status);
 		if (!providerId.empty())
 			ApplyEmailEvents(database, providerId);
 	}
 	else
 	{
 		const bool failed = !retry || attempts + 1 >= 5;
-		database.Query("UPDATE accounts.mail_jobs SET state=CASE WHEN $2::boolean THEN 'failed' ELSE 'queued' END,"
-					   "body=CASE WHEN $2::boolean THEN '' ELSE body END,unsubscribe_token=CASE WHEN $2::boolean THEN "
-					   "NULL ELSE unsubscribe_token END,"
-					   "request_body=CASE WHEN $2::boolean THEN NULL ELSE request_body END,"
-					   "finished_at=CASE WHEN $2::boolean THEN now() ELSE NULL "
-					   "END,last_error=$3,status_code=NULLIF($4,'0')::integer,"
-					   "available_at=now()+$5::integer*interval '1 second' WHERE id=$1::bigint AND state='processing'",
-					   {id, failed ? "true" : "false", error, std::to_string(status), std::to_string(delay)});
+		repository.RecordDeliveryFailure(id, failed, error, status, delay);
 		if (status == 429 || status == 401 || status == 403 || status >= 500)
-			database.Query("UPDATE accounts.mail_worker_status SET "
-						   "pause_until=GREATEST(pause_until,now()+$1::integer*interval '1 second')",
-						   {std::to_string(status == 401 || status == 403 ? 300 : delay)});
+			repository.ExtendProviderPause(status == 401 || status == 403 ? 300 : delay);
 	}
 	transaction.Commit();
 	return true;

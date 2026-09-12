@@ -1,4 +1,5 @@
 #include "AccountStore.h"
+#include "MailRepository.h"
 #include "Crypto.h"
 #include "InputValidation.h"
 #include "stdafx.h"
@@ -425,14 +426,11 @@ Reply AccountStore::ReceiveEmailEvent(const std::string& eventId, const Json::Va
 		throw RequestError(400, "Invalid email event");
 	m_Database.ReconnectIfNeeded();
 	Transaction transaction(m_Database);
-	m_Database.Query("SELECT pg_advisory_xact_lock(hashtextextended($1,70123005))", {providerId});
-	m_Database.Query("INSERT INTO accounts.mail_events(event_id,provider_id,event_type,occurred_at) "
-					 "VALUES($1,$2,$3,$4::timestamptz) "
-					 "ON CONFLICT(event_id) DO NOTHING",
-					 {eventId, providerId, type, occurred});
-	const auto stored =
-		m_Database.Query("SELECT provider_id,event_type FROM accounts.mail_events WHERE event_id=$1", {eventId});
-	if (stored.Get(0, 0) != providerId || stored.Get(0, 1) != type)
+	MailRepository repository(m_Database);
+	repository.LockProvider(providerId);
+	repository.InsertProviderEvent(eventId, providerId, type, occurred);
+	const auto stored = repository.FindProviderEvent(eventId);
+	if (stored.providerId != providerId || stored.type != type)
 		throw RequestError(400, "Conflicting email event");
 	ApplyEmailEvents(m_Database, providerId);
 	transaction.Commit();
@@ -449,51 +447,40 @@ Json::Value EmailDeliveryStatus(Database& database, const Json::Value& query, co
 	if (!state.empty() && state != "queued" && state != "processing" && state != "accepted" && state != "delivered" &&
 		state != "delayed" && state != "bounced" && state != "complained" && state != "skipped" && state != "failed")
 		throw RequestError(400, "Invalid email state");
+	MailRepository repository(database);
 	Json::Value result;
 	result["transport"] = transport;
 	result["counts"]	= Json::objectValue;
-	const auto totals	= database.Query(
-		  "SELECT CASE WHEN state='delivered' AND transport='local_outbox' THEN 'outbox' ELSE state END,count(*) "
-		  "FROM accounts.mail_jobs GROUP BY 1");
-	for (int i = 0; i < totals.Count(); ++i)
-		result["counts"][totals.Get(i, 0)] = totals.Get(i, 1);
-	const auto worker = database.Query(
-		"SELECT COALESCE(to_char(heartbeat_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),''),"
-		"COALESCE(heartbeat_at>now()-interval '60 seconds',false),last_error,pause_until>now(),"
-		"to_char(pause_until AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM accounts.mail_worker_status");
-	result["worker"]["heartbeatAt"] = worker.Get(0, 0);
-	result["worker"]["healthy"]		= worker.Get(0, 1) == "t";
-	result["worker"]["error"]		= worker.Get(0, 2);
-	result["worker"]["paused"]		= transport == "resend" && worker.Get(0, 3) == "t";
-	result["worker"]["pauseUntil"]	= worker.Get(0, 4);
+	const auto totals	= repository.StateCounts();
+	for (const auto& total : totals)
+		result["counts"][total.state] = total.count;
+	const auto worker = repository.WorkerStatus();
+	result["worker"]["heartbeatAt"] = worker.heartbeatAt;
+	result["worker"]["healthy"]		= worker.healthy;
+	result["worker"]["error"]		= worker.error;
+	result["worker"]["paused"]		= transport == "resend" && worker.paused;
+	result["worker"]["pauseUntil"]	= worker.pauseUntil;
 	result["jobs"]					= Json::arrayValue;
-	const auto jobs					= database.Query(
-		"SELECT "
-						"id,kind,recipient,subject,state,attempts,COALESCE(transport,''),last_error,COALESCE(status_code::text,''),"
-						"COALESCE(provider_id,''),to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),"
-						"to_char(available_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM accounts.mail_jobs "
-						"WHERE ($1='' OR id<NULLIF($1,'')::bigint) AND ($2='' OR state=$2) ORDER BY id DESC LIMIT 51",
-		{before, state});
-	const char* keys[] = {"id",
-						  "kind",
-						  "recipient",
-						  "subject",
-						  "state",
-						  "attempts",
-						  "transport",
-						  "error",
-						  "statusCode",
-						  "providerId",
-						  "createdAt",
-						  "availableAt"};
-	for (int i = 0; i < std::min(jobs.Count(), 50); ++i)
+	const auto jobs					= repository.ListJobsBefore(before, state);
+	for (std::size_t i = 0; i < std::min(jobs.size(), std::size_t{50}); ++i)
 	{
+		const auto& job = jobs[i];
 		Json::Value item;
-		for (int j = 0; j < 12; ++j)
-			item[keys[j]] = jobs.Get(i, j);
+		item["id"]			= job.id;
+		item["kind"]		= job.kind;
+		item["recipient"]	= job.recipient;
+		item["subject"]		= job.subject;
+		item["state"]		= job.state;
+		item["attempts"]	= job.attempts;
+		item["transport"]	= job.transport;
+		item["error"]		= job.error;
+		item["statusCode"]	= job.statusCode;
+		item["providerId"]	= job.providerId;
+		item["createdAt"]	= job.createdAt;
+		item["availableAt"] = job.availableAt;
 		result["jobs"].append(item);
 	}
-	result["nextBefore"] = jobs.Count() > 50 ? jobs.Get(49, 0) : "";
+	result["nextBefore"] = jobs.size() > 50 ? jobs[49].id : "";
 	return result;
 }
 

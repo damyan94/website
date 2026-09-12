@@ -280,6 +280,14 @@ HTTP client lifecycle, request submission and bounded response decoding;
 selects the configured transport and joins its thread before releasing transport
 resources. Neither transport accesses the database or retries a delivery.
 
+`MailRepository` borrows the caller's database connection for mail-job and provider-
+event SQL, suppression records, worker status and delivery-status read projections.
+It maps rows without owning transactions, reconnects or delivery decisions. The
+worker still commits a claim and its exact payload/key before transport I/O, then
+reconciles the result in a separate transaction. Callback validation and event-state
+interpretation remain in their existing callers, including the shared provider lock.
+Account challenge and campaign workflows retain their own persistence for this stage.
+
 Campaign preview stores a draft with an idempotency key bound to its author and
 content. Queueing checks the displayed recipient count again; a changed count
 requires another preview. It then snapshots the currently eligible recipients
