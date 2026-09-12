@@ -191,9 +191,18 @@ and timing checks, page clamping, response assembly and the order of persistence
 and notification calls. Rescheduling still replaces occupancy around the schedule
 update while preserving the original service and price snapshot.
 
-Availability, catalog date-bound and notification SQL remain in the service;
-their extraction is deferred. The reminder hook retains its separate transaction
-and delivery-eligibility checks. No schema migration is required.
+`ReservationCatalog` interprets each current public snapshot, filters bookable
+variants and resolves offers. It hashes the original snapshot bytes for revisions
+and does not cache a catalog across requests. `ReservationAvailability` calculates
+slots from the PostgreSQL minute timeline and occupied ranges, applying the existing
+lead time, buffers, schedules, closures and configured resource order. These concrete
+components are owned by the service and borrow the same immutable settings.
+
+The service retains request validation, revision checks, horizon gating, PostgreSQL
+time/date and occupancy queries, row conversion and JSON response assembly. PostgreSQL
+still defines local dates, UTC instants and daylight-saving transitions. Notification
+SQL and orchestration remain in the service; the reminder hook retains its separate
+transaction and delivery-eligibility checks. No schema migration is required.
 
 Existing validation functions shared by configuration and request handling live
 in `Source/Reservations/Validation.h`. Phone-character and decimal-identifier checks

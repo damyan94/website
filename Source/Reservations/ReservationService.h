@@ -1,13 +1,14 @@
 #pragma once
 
 #include "Accounts/Types.h"
-#include "PublicContent.h"
+#include "ReservationCatalog.h"
+#include "ReservationAvailability.h"
 #include <utility>
 
 namespace Reservations
 {
-// HTTP workflows use the caller's authenticated transaction. Appointment persistence
-// delegates to ReservationRepository; business rules, availability and reminders stay here.
+// HTTP workflows use the caller's authenticated transaction. Catalog interpretation,
+// slot calculation and appointment persistence delegate to concrete feature components.
 class ReservationService
 {
 public:
@@ -29,14 +30,7 @@ public:
 	bool ReminderEligible(Accounts::Database& db, const std::string& job) const;
 
 private:
-	struct Offer
-	{
-		Json::Value title;
-		int			duration;
-		long long	price;
-		std::string currency;
-		Json::Value rule;
-	};
+	using Offer = ReservationCatalog::Offer;
 
 	struct BookingContact
 	{
@@ -70,10 +64,9 @@ private:
 								const Json::Value&		  appointment,
 								const Json::Value&		  body) const;
 	std::string		Notify(Accounts::Database& db, const Json::Value& appointment, const std::string& action) const;
-	bool			Open(const Json::Value& windows, int weekday, int minute) const;
-	bool			Closed(const std::string& date, const std::string& resource) const;
 	const Json::Value& m_Settings;
-	std::shared_ptr<PublicContent::Snapshot> m_Content;
+	ReservationCatalog m_Catalog;
+	ReservationAvailability m_Availability;
 	Accounts::StoreSettings m_Accounts;
 };
 } // namespace Reservations

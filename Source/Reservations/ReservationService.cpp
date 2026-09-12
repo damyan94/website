@@ -4,7 +4,6 @@
 #include "Accounts/Crypto.h"
 #include "InputValidation.h"
 #include <algorithm>
-#include <sstream>
 
 namespace Reservations
 {
@@ -12,17 +11,6 @@ namespace
 {
 using Accounts::RequestError;
 using namespace Validation;
-
-Json::Value Parse(const std::string& bytes)
-{
-	Json::CharReaderBuilder builder;
-	Json::Value				value;
-	std::string				errors;
-	std::istringstream		input(bytes);
-	if (!Json::parseFromStream(builder, input, &value, &errors))
-		throw std::runtime_error("Invalid reservations JSON");
-	return value;
-}
 
 std::string Serialize(const Json::Value& value)
 {
@@ -63,7 +51,8 @@ ReservationService::ReservationService(const Json::Value& settings,
 									   std::shared_ptr<PublicContent::Snapshot> content,
 									   Accounts::StoreSettings accounts)
 	: m_Settings(settings),
-	  m_Content(std::move(content)),
+	  m_Catalog(settings, std::move(content)),
+	  m_Availability(settings),
 	  m_Accounts(std::move(accounts))
 {
 	Catalog();
@@ -71,13 +60,12 @@ ReservationService::ReservationService(const Json::Value& settings,
 
 Json::Value ReservationService::Catalog() const
 {
-	const auto	bytes	 = m_Content->Get();
-	const auto	document = Parse(*bytes);
+	auto catalog = m_Catalog.Read();
 	Json::Value result(Json::objectValue);
-	result["revision"]	  = Accounts::TokenHash(*bytes);
+	result["revision"]	  = catalog.revision;
 	result["timezone"]	  = m_Settings["timezone"];
 	result["cancelHours"] = m_Settings["cancel_hours"];
-	result["services"]	  = Json::arrayValue;
+	result["services"]	  = std::move(catalog.services);
 	result["resources"]	  = Json::arrayValue;
 	for (const auto& resource : m_Settings["resources"])
 	{
@@ -86,67 +74,18 @@ Json::Value ReservationService::Catalog() const
 			item[key] = resource[key];
 		result["resources"].append(item);
 	}
-	for (const auto& rule : m_Settings["services"])
-		for (const auto& service : document["services"])
-		{
-			if (service["id"] != rule["id"] || !service.get("available", true).asBool())
-				continue;
-			Json::Value item;
-			item["id"]		   = service["id"];
-			item["title"]	   = service["title"];
-			item["therapists"] = rule["therapists"];
-			item["variants"]   = Json::arrayValue;
-			for (const auto& variant : service["variants"])
-			{
-				if (!variant["priceMinor"].isInt64() || variant["priceMinor"].asInt64() < 0 ||
-					variant["priceMinor"].asInt64() > 1000000000 || !variant["durationMinutes"].isInt() ||
-					variant["durationMinutes"].asInt() < 5 || variant["durationMinutes"].asInt() > 240 ||
-					!variant["currency"].isString() || variant["currency"].asString().size() != 3)
-					continue;
-				item["variants"].append(variant);
-			}
-			if (!item["variants"].empty())
-				result["services"].append(item);
-		}
 	return result;
 }
 
 ReservationService::Offer ReservationService::FindOffer(const std::string& service, int duration, const std::string& revision) const
 {
-	const auto catalog = Catalog();
-	if (revision != catalog["revision"].asString())
+	const auto catalog = m_Catalog.Read();
+	if (revision != catalog.revision)
 		throw RequestError(409, "The service menu changed; reload booking options");
-	for (const auto& item : catalog["services"])
-		if (item["id"].asString() == service)
-			for (const auto& variant : item["variants"])
-				if (variant["durationMinutes"].asInt() == duration)
-					for (const auto& rule : m_Settings["services"])
-						if (rule["id"].asString() == service)
-							return {item["title"],
-									duration,
-									variant["priceMinor"].asInt64(),
-									variant["currency"].asString(),
-									rule};
+	auto offer = m_Catalog.FindOffer(catalog, service, duration);
+	if (offer)
+		return std::move(*offer);
 	throw RequestError(400, "This service or duration is not available for native booking");
-}
-
-bool ReservationService::Open(const Json::Value& windows, int weekday, int minute) const
-{
-	for (const auto& window : windows)
-		if (std::any_of(
-				window["days"].begin(), window["days"].end(), [&](const auto& d) { return d.asInt() == weekday; }) &&
-			minute >= Minute(window["start"]) && minute < Minute(window["end"]))
-			return true;
-	return false;
-}
-
-bool ReservationService::Closed(const std::string& date, const std::string& resource) const
-{
-	for (const auto& closure : m_Settings["closures"])
-		if (closure["date"].asString() == date &&
-			(closure["resources"].empty() || Contains(closure["resources"], resource)))
-			return true;
-	return false;
 }
 
 Json::Value ReservationService::Availability(Accounts::Database& db,
@@ -164,7 +103,7 @@ Json::Value ReservationService::Availability(Accounts::Database& db,
 	Json::Value slots(Json::arrayValue);
 	if (date < clock.Get(0, 1) || date > clock.Get(0, 2))
 		return slots;
-	const auto earliest = std::stoll(clock.Get(0, 0)) + m_Settings["lead_minutes"].asInt() * 60;
+	const auto now = std::stoll(clock.Get(0, 0));
 	// Walk real UTC minutes, then inspect local wall-clock minutes. Missing DST
 	// times never appear; repeated times keep distinct UTC identities. Checking
 	// every occupied minute also enforces breaks across clock transitions.
@@ -184,68 +123,22 @@ Json::Value ReservationService::Availability(Accounts::Database& db,
 		"AND appointment_id<>COALESCE(NULLIF($3,'')::bigint,0)",
 		{date, timezone, exclude});
 
-	struct Tick
-	{
-		long long	instant;
-		int			weekday;
-		int			minute;
-		std::string stamp;
-	};
-
-	std::vector<Tick> ticks;
+	std::vector<ReservationAvailability::Tick> ticks;
 	for (int i = 0; i < timeline.Count(); ++i)
 		ticks.push_back({std::stoll(timeline.Get(i, 0)),
 						 std::stoi(timeline.Get(i, 1)),
 						 std::stoi(timeline.Get(i, 2)),
 						 timeline.Get(i, 3)});
-	const int before = offer.rule["buffer_before"].asInt(), after = offer.rule["buffer_after"].asInt();
-	for (int i = before; i + offer.duration + after <= static_cast<int>(ticks.size()); ++i)
+	std::vector<ReservationAvailability::OccupiedRange> ranges;
+	for (int i = 0; i < occupied.Count(); ++i)
+		ranges.push_back({occupied.Get(i, 0), std::stoll(occupied.Get(i, 1)), std::stoll(occupied.Get(i, 2))});
+	const auto available = m_Availability.Calculate(date, choice, offer.duration, offer.rule, now, ticks, ranges);
+	for (const auto& item : available)
 	{
-		if (ticks[i].instant < earliest || ticks[i].minute % m_Settings["slot_minutes"].asInt())
-			continue;
-		const int begin = i - before, end = i + offer.duration + after;
-		auto	  free = [&](const std::string& id)
-		{
-			if (Closed(date, id))
-				return false;
-			const Json::Value* resource = nullptr;
-			for (const auto& item : m_Settings["resources"])
-				if (item["id"].asString() == id)
-					resource = &item;
-			if (!resource)
-				return false;
-			for (int k = begin; k < end; ++k)
-				if (!Open(m_Settings["business_hours"], ticks[k].weekday, ticks[k].minute) ||
-					!Open((*resource)["hours"], ticks[k].weekday, ticks[k].minute))
-					return false;
-			const auto starts = ticks[begin].instant, ends = ticks[end - 1].instant + 60;
-			for (int k = 0; k < occupied.Count(); ++k)
-				if (occupied.Get(k, 0) == id && starts < std::stoll(occupied.Get(k, 2)) &&
-					ends > std::stoll(occupied.Get(k, 1)))
-					return false;
-			return true;
-		};
-		std::string therapist, room;
-		for (const auto& id : offer.rule["therapists"])
-			if ((choice.empty() || choice == id.asString()) && free(id.asString()))
-			{
-				therapist = id.asString();
-				break;
-			}
-		if (therapist.empty())
-			continue;
-		for (const auto& id : offer.rule["rooms"])
-			if (free(id.asString()))
-			{
-				room = id.asString();
-				break;
-			}
-		if (room.empty())
-			continue;
 		Json::Value slot;
-		slot["startsAt"]	= ticks[i].stamp;
-		slot["therapistId"] = therapist;
-		slot["roomId"]		= room;
+		slot["startsAt"] = item.startsAt;
+		slot["therapistId"] = item.therapistId;
+		slot["roomId"] = item.roomId;
 		slots.append(slot);
 	}
 	return slots;
