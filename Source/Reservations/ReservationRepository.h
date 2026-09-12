@@ -49,6 +49,12 @@ struct AppointmentTiming
 	bool hasEnded;
 };
 
+struct ReminderCandidate
+{
+	std::string id;
+	std::string version;
+};
+
 // Borrows the current worker's connection and participates in its caller's transaction.
 class ReservationRepository
 {
@@ -80,6 +86,15 @@ public:
 	void UpdateState(const std::string& id, const std::string& state);
 	void SkipQueuedReminders(const std::string& id);
 	void RecordEvent(const std::string& id, const std::string& actor, const std::string& action);
+
+	std::optional<std::string> CurrentNotificationEmail(const std::string& user);
+	std::string LocalAppointmentStart(const std::string& id, const std::string& timezone);
+
+	int CountPendingMailJobs();
+	std::vector<ReminderCandidate> DueReminders(const std::string& hours, int limit);
+	void MarkReminderJob(const std::string& job, const std::string& id);
+	void RecordReminder(const std::string& id, const std::string& version, const std::string& job);
+	bool ReminderEligible(const std::string& job);
 
 private:
 	int Count(const std::string& condition, const std::vector<std::string>& args);

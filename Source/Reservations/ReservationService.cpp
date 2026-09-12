@@ -53,7 +53,8 @@ ReservationService::ReservationService(const Json::Value& settings,
 	: m_Settings(settings),
 	  m_Catalog(settings, std::move(content)),
 	  m_Availability(settings),
-	  m_Accounts(std::move(accounts))
+	  m_Accounts(std::move(accounts)),
+	  m_Notifications(settings, m_Accounts.email, m_Accounts.ui)
 {
 	Catalog();
 }
@@ -155,104 +156,25 @@ Json::Value ReservationService::Read(Accounts::Database& db, const std::string& 
 
 std::string ReservationService::Notify(Accounts::Database& db, const Json::Value& appointment, const std::string& action) const
 {
-	if (!m_Accounts.email.enabled || appointment["contactEmail"].asString().empty())
-		return "";
-	auto recipient = appointment["contactEmail"].asString();
-	if (!appointment["userId"].isNull())
-	{
-		// Keep the booking's contact snapshot for staff/history, but send new notices
-		// to the account's current verified address after an email change.
-		const auto account = db.Query(
-			"SELECT email FROM accounts.users WHERE id=$1::bigint AND enabled AND email_verified_at IS NOT NULL",
-			{appointment["userId"].asString()});
-		if (!account.Count())
-			return "";
-		recipient = account.Get(0, 0);
-	}
-	const auto locale = appointment["locale"].asString();
-	const bool bg	  = locale == "bg";
-	const auto title  = appointment["serviceTitle"].get(locale, appointment["serviceTitle"].get("en", "")).asString();
-	const auto local  = db.Query("SELECT to_char(starts_at AT TIME ZONE $2,'YYYY-MM-DD HH24:MI') FROM "
-								 "reservations.appointments WHERE id=$1::bigint",
-								 {appointment["id"].asString(), m_Settings["timezone"].asString()})
-						   .Get(0, 0);
-	const std::string status  = bg ? (action == "reminder"		? "Напомняне"
-									  : action == "confirmed"	? "Потвърдена"
-									  : action == "rescheduled" ? "Променена"
-									  : action == "cancelled"	? "Отказана"
-									  : action == "completed"	? "Завършена"
-																: "Неявяване")
-								   : action;
-	const auto		  subject = (bg ? "Резервация: " : "Reservation: ") + status;
-	const auto		  management =
-		   appointment["userId"].isNull()
-				   ? (bg ? "За промяна се свържете със служител. " : "Contact staff to change this reservation. ") +
-					 m_Accounts.ui.supportText.get(locale, "").asString()
-				   : (bg ? "Управление на резервации: " : "Manage reservations: ") + m_Accounts.email.origin +
-					 "/profile?lang=" + locale + "#section-reservations";
-	const auto body = m_Accounts.ui.siteName + "\n\n" + appointment["contactName"].asString() + "\n" + title + "\n" +
-					  local + " (" + m_Settings["timezone"].asString() + ")\n" + status + "\n\n" +
-					  (bg ? "Номер: " : "Reference: ") + appointment["id"].asString() + "\n" + management;
-	return Accounts::QueueEmail(
-		db, recipient, subject, body, appointment["userId"].isNull() ? "" : appointment["userId"].asString());
+	return m_Notifications.Notify(db, appointment, action);
 }
 
 bool ReservationService::RemindersEnabled() const
 {
-	return m_Accounts.email.enabled && m_Settings.get("reminders_enabled", false).asBool();
+	return m_Notifications.RemindersEnabled();
 }
 
 void ReservationService::QueueReminders(Accounts::Database& db) const
 {
 	Accounts::Transaction transaction(db);
 	db.Query("SELECT pg_advisory_xact_lock(70123002)");
-	const auto pending =
-		std::stoi(db.Query("SELECT count(*) FROM accounts.mail_jobs WHERE state IN ('queued','processing')").Get(0, 0));
-	const auto capacity = std::min(20, 10000 - pending);
-	if (capacity <= 0)
-	{
-		transaction.Commit();
-		return;
-	}
-	// Bookings made/changed after the reminder time already have a fresh confirmation.
-	// Do not follow it with an immediate reminder, or send reminders after the visit starts.
-	const auto rows =
-		db.Query("SELECT a.id,a.version FROM reservations.appointments a LEFT JOIN accounts.users u ON u.id=a.user_id "
-				 "WHERE a.state='confirmed' AND a.starts_at>now()+interval '5 minutes' "
-				 "AND a.starts_at<=now()+$1::integer*interval '1 hour' AND "
-				 "a.updated_at<=a.starts_at-$1::integer*interval '1 hour' "
-				 "AND ((a.user_id IS NULL AND a.contact_email<>'') OR (u.enabled AND u.email_verified_at IS NOT NULL)) "
-				 "AND NOT EXISTS(SELECT 1 FROM reservations.reminders r WHERE r.appointment_id=a.id AND "
-				 "r.appointment_version=a.version) "
-				 "ORDER BY a.starts_at,a.id LIMIT $2::integer FOR UPDATE OF a SKIP LOCKED",
-				 {m_Settings.get("reminder_hours", 24).asString(), std::to_string(capacity)});
-	for (int i = 0; i < rows.Count(); ++i)
-	{
-		const auto id  = rows.Get(i, 0);
-		const auto job = Notify(db, Read(db, id), "reminder");
-		if (job.empty())
-			continue;
-		db.Query("UPDATE accounts.mail_jobs SET kind='reminder',expires_at=(SELECT starts_at FROM "
-				 "reservations.appointments WHERE id=$2::bigint) WHERE id=$1::bigint",
-				 {job, id});
-		db.Query("INSERT INTO reservations.reminders(appointment_id,appointment_version,mail_job_id) "
-				 "VALUES($1::bigint,$2::bigint,$3::bigint)",
-				 {id, rows.Get(i, 1), job});
-	}
+	m_Notifications.QueueReminders(db);
 	transaction.Commit();
 }
 
 bool ReservationService::ReminderEligible(Accounts::Database& db, const std::string& job) const
 {
-	return db.Query(
-				 "SELECT a.id FROM reservations.reminders r JOIN reservations.appointments a ON a.id=r.appointment_id "
-				 "JOIN accounts.mail_jobs j ON j.id=r.mail_job_id LEFT JOIN accounts.users u ON u.id=a.user_id "
-				 "WHERE j.id=$1::bigint AND a.state='confirmed' AND a.version=r.appointment_version AND "
-				 "a.starts_at>now() "
-				 "AND ((a.user_id IS NULL AND j.recipient=a.contact_email) OR (u.enabled AND u.email_verified_at IS "
-				 "NOT NULL AND j.recipient=u.email))",
-				 {job})
-			   .Count() != 0;
+	return m_Notifications.ReminderEligible(db, job);
 }
 
 Json::Value ReservationService::GetOptions(Accounts::Database& db)

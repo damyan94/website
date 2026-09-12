@@ -85,6 +85,7 @@ if(WEBSITE_ENABLE_RESERVATIONS)
 		Source/Reservations/ReservationService.cpp
 		Source/Reservations/ReservationCatalog.cpp
 		Source/Reservations/ReservationAvailability.cpp
+		Source/Reservations/ReservationNotifications.cpp
 		Source/Reservations/ReservationRepository.cpp
 		Source/Reservations/Controller.cpp
 	)

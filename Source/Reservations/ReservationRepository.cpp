@@ -188,6 +188,73 @@ void ReservationRepository::RecordEvent(const std::string& id,
 			 {id, actor, action});
 }
 
+std::optional<std::string> ReservationRepository::CurrentNotificationEmail(const std::string& user)
+{
+	const auto account = m_Database.Query(
+			"SELECT email FROM accounts.users WHERE id=$1::bigint AND enabled AND email_verified_at IS NOT NULL",
+			{user});
+	if (!account.Count())
+		return std::nullopt;
+	return account.Get(0, 0);
+}
+
+std::string ReservationRepository::LocalAppointmentStart(const std::string& id, const std::string& timezone)
+{
+	return m_Database.Query("SELECT to_char(starts_at AT TIME ZONE $2,'YYYY-MM-DD HH24:MI') FROM "
+								 "reservations.appointments WHERE id=$1::bigint",
+								 {id, timezone})
+						   .Get(0, 0);
+}
+
+int ReservationRepository::CountPendingMailJobs()
+{
+	return std::stoi(m_Database.Query("SELECT count(*) FROM accounts.mail_jobs WHERE state IN ('queued','processing')").Get(0, 0));
+}
+
+std::vector<ReminderCandidate> ReservationRepository::DueReminders(const std::string& hours, int limit)
+{
+	const auto rows = m_Database.Query("SELECT a.id,a.version FROM reservations.appointments a LEFT JOIN accounts.users u ON u.id=a.user_id "
+				 "WHERE a.state='confirmed' AND a.starts_at>now()+interval '5 minutes' "
+				 "AND a.starts_at<=now()+$1::integer*interval '1 hour' AND "
+				 "a.updated_at<=a.starts_at-$1::integer*interval '1 hour' "
+				 "AND ((a.user_id IS NULL AND a.contact_email<>'') OR (u.enabled AND u.email_verified_at IS NOT NULL)) "
+				 "AND NOT EXISTS(SELECT 1 FROM reservations.reminders r WHERE r.appointment_id=a.id AND "
+				 "r.appointment_version=a.version) "
+				 "ORDER BY a.starts_at,a.id LIMIT $2::integer FOR UPDATE OF a SKIP LOCKED",
+				 {hours, std::to_string(limit)});
+	std::vector<ReminderCandidate> reminders;
+	for (int i = 0; i < rows.Count(); ++i)
+		reminders.push_back({rows.Get(i, 0), rows.Get(i, 1)});
+	return reminders;
+}
+
+void ReservationRepository::MarkReminderJob(const std::string& job, const std::string& id)
+{
+	m_Database.Query("UPDATE accounts.mail_jobs SET kind='reminder',expires_at=(SELECT starts_at FROM "
+				 "reservations.appointments WHERE id=$2::bigint) WHERE id=$1::bigint",
+				 {job, id});
+}
+
+void ReservationRepository::RecordReminder(const std::string& id, const std::string& version, const std::string& job)
+{
+	m_Database.Query("INSERT INTO reservations.reminders(appointment_id,appointment_version,mail_job_id) "
+				 "VALUES($1::bigint,$2::bigint,$3::bigint)",
+				 {id, version, job});
+}
+
+bool ReservationRepository::ReminderEligible(const std::string& job)
+{
+	return m_Database.Query(
+				 "SELECT a.id FROM reservations.reminders r JOIN reservations.appointments a ON a.id=r.appointment_id "
+				 "JOIN accounts.mail_jobs j ON j.id=r.mail_job_id LEFT JOIN accounts.users u ON u.id=a.user_id "
+				 "WHERE j.id=$1::bigint AND a.state='confirmed' AND a.version=r.appointment_version AND "
+				 "a.starts_at>now() "
+				 "AND ((a.user_id IS NULL AND j.recipient=a.contact_email) OR (u.enabled AND u.email_verified_at IS "
+				 "NOT NULL AND j.recipient=u.email))",
+				 {job})
+			   .Count() != 0;
+}
+
 int ReservationRepository::Count(const std::string& condition, const std::vector<std::string>& args)
 {
 	return std::stoi(

@@ -3,12 +3,13 @@
 #include "Accounts/Types.h"
 #include "ReservationCatalog.h"
 #include "ReservationAvailability.h"
+#include "ReservationNotifications.h"
 #include <utility>
 
 namespace Reservations
 {
 // HTTP workflows use the caller's authenticated transaction. Catalog interpretation,
-// slot calculation and appointment persistence delegate to concrete feature components.
+// slot calculation, appointment persistence and notices delegate to concrete feature components.
 class ReservationService
 {
 public:
@@ -68,5 +69,6 @@ private:
 	ReservationCatalog m_Catalog;
 	ReservationAvailability m_Availability;
 	Accounts::StoreSettings m_Accounts;
+	ReservationNotifications m_Notifications;
 };
 } // namespace Reservations

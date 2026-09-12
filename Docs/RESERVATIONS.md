@@ -200,9 +200,20 @@ components are owned by the service and borrow the same immutable settings.
 
 The service retains request validation, revision checks, horizon gating, PostgreSQL
 time/date and occupancy queries, row conversion and JSON response assembly. PostgreSQL
-still defines local dates, UTC instants and daylight-saving transitions. Notification
-SQL and orchestration remain in the service; the reminder hook retains its separate
-transaction and delivery-eligibility checks. No schema migration is required.
+still defines local dates, UTC instants and daylight-saving transitions.
+
+`ReservationNotifications` owns recipient selection, localized notice generation,
+reminder scan orchestration and delivery-eligibility delegation. Its reservation-specific
+SQL and row mapping live in `ReservationRepository`; queue insertion still uses the
+existing `Accounts::QueueEmail` boundary. The service retains the explicit reminder-scan
+transaction and advisory lock, and its existing compatibility entry points delegate to
+the component. The component owns only the email-enabled flag, origin and UI settings it
+needs, and borrows the immutable reservation settings; it retains no database connection.
+
+Booking changes, queued-reminder invalidation, events and notices retain their original
+order in the caller's transaction. Reminder jobs and their appointment/version records
+commit together. Eligibility still runs inside the existing email worker's claim
+transaction, which commits before delivery I/O. No schema migration is required.
 
 Existing validation functions shared by configuration and request handling live
 in `Source/Reservations/Validation.h`. Phone-character and decimal-identifier checks
