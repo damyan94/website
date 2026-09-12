@@ -62,7 +62,6 @@ public:
 	void Stop();
 
 private:
-	bool									  DeliverOne(Database& database);
 	void									  Run(std::unique_ptr<Database> database);
 	std::string								  m_Connection;
 	EmailSettings							  m_Settings;

@@ -273,20 +273,27 @@ across restarts; numeric Retry-After values up to one day are honored. Credentia
 permission failures stop that job and pause provider requests for five minutes.
 Other permanent rejections stop that job immediately.
 
-`Accounts::EmailWorker` owns claiming, eligibility checks, persisted payload/key
-snapshots, retry decisions and delivery reconciliation. `ResendTransport` owns the
-HTTP client lifecycle, request submission and bounded response decoding;
-`LocalOutboxTransport` owns the directory lock and atomic file delivery. The worker
-selects the configured transport and joins its thread before releasing transport
-resources. Neither transport accesses the database or retries a delivery.
+`Accounts::EmailDeliveryService` owns claim processing, eligibility coordination,
+persisted payload/key snapshots, provider dispatch, retry decisions and delivery
+reconciliation. `EmailWorker` owns the thread and loop, stop/join behavior, database
+connection and recovery, scheduling cadence and heartbeat updates. The service
+borrows settings, hooks and transports and receives the current connection for
+each delivery attempt; it does not retain the connection across reconnects.
+
+`ResendTransport` owns the HTTP client lifecycle, request submission and bounded
+response decoding; `LocalOutboxTransport` owns the directory lock and atomic file
+delivery. The worker starts the configured transport and joins its thread before
+releasing transport resources. Neither transport accesses the database or retries
+a delivery.
 
 `MailRepository` borrows the caller's database connection for mail-job and provider-
 event SQL, suppression records, worker status and delivery-status read projections.
 It maps rows without owning transactions, reconnects or delivery decisions. The
-worker still commits a claim and its exact payload/key before transport I/O, then
-reconciles the result in a separate transaction. Callback validation and event-state
-interpretation remain in their existing callers, including the shared provider lock.
-Account challenge and campaign workflows retain their own persistence for this stage.
+delivery service commits a claim and its exact payload/key before transport I/O,
+then reconciles the result in a separate transaction. Callback validation and
+event-state interpretation remain in their existing callers, including the shared
+provider lock. Account challenge and campaign workflows retain their own persistence
+for this stage.
 
 Campaign preview stores a draft with an idempotency key bound to its author and
 content. Queueing checks the displayed recipient count again; a changed count
