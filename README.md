@@ -100,6 +100,22 @@ check that the installed CMake meets the 3.25 minimum.
 | `./Scripts/run.sh preview` | Frontend-only Python preview on **8090**; accepts `--port N` |
 | `./Scripts/test.sh` | Build both variants, run Felis tests and the complete application integration suite |
 | `./Scripts/test.sh --no-build` | Run those tests using existing builds |
+| `./Scripts/clean.sh --dry-run` | Validate configured builds and preview their clean commands |
+| `./Scripts/clean.sh` | Clean compiled outputs in both builds while preserving caches and runtime data |
+| `./Scripts/clean.sh --public-only` | Clean only the public-only build |
+
+`./Scripts/test.sh` is the single standard verification command: it builds the full
+application, builds public-only, then runs the complete tests using those binaries.
+Use `./Scripts/test.sh --jobs 4` to control build parallelism. A separate `check.sh`
+would duplicate this workflow. After explicit builds (for example with custom
+CMake options), use `./Scripts/test.sh --no-build`.
+
+`clean.sh` delegates to CMake's clean target; it never recursively removes `Build`.
+It skips unconfigured builds and rejects symlinked build directories/caches or
+caches for another source/build path. Stop builds, tests and running backends first.
+CMake caches/generators, `Build/LocalPostgres`, test fixtures and example `Runtime`
+data are retained. Cache resets and database/backup removal remain deliberate
+manual operations; cleaning does not give a fresh configuration or database.
 
 All scripts support `--help`. Paths to project files resolve from the script, so
 the scripts can also be invoked by absolute path from another directory. Server
