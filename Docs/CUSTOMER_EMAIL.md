@@ -103,85 +103,209 @@ The content editor remains independently configurable.
 
 ## Going live, starting without a domain or hosting
 
-You can develop and run every automated test before buying anything. The local
-outbox is the default. Production activation is a separate step:
+The current Resend path needs no code change for activation. A verified domain,
+private secrets, HTTPS hosting and live verification are still required. The
+example configuration deliberately remains on `local_outbox`.
 
-1. **Choose a domain and hosting.** A domain is the website name you register,
-   for example `your-domain.example` (a placeholder, not a real domain to use).
-   Hosting is the computer/service that runs this C++ backend and PostgreSQL and
-   keeps them online. It must support the backend, not just static HTML files.
-   The company managing your domain's DNS may be different from your hosting company.
-2. **Create a Resend account and add a sending domain.** A subdomain such as
-   `mail.your-domain.example` keeps sending configuration distinct from the website.
-   The outgoing address could then be `no-reply@mail.your-domain.example`.
-   This does not create a mailbox for incoming replies; ordinary support email,
-   if wanted, needs its own mailbox service.
-3. **Copy Resend's DNS records into your DNS provider.** DNS is the public directory
-   for your domain. Resend supplies exact record types, names and values for your
-   selected domain/region. Its SPF record authorizes sending, and DKIM lets receiving
-   servers verify signatures. Copy the displayed records exactly and wait for
-   Resend to report the domain as verified. Follow its current DMARC guidance too.
-   Keep existing website and mailbox records; do not replace unrelated MX records
-   or invent a second SPF record for the same name.
-4. **Deploy the website with HTTPS.** The hosting/reverse proxy supplies the TLS
-   certificate and routes requests to this backend. Set `accounts.public_origin`
-   to the final website origin, such as `https://www.your-domain.example`. All account
-   links point there. The proxy must preserve that host and route `/api/v1/*` to the
-   backend. The website can initially run with `local_outbox` while you finish setup.
-5. **Register the webhook in Resend.** Use the website origin followed by
-   `/api/v1/email/webhook/resend`, for example
-   `https://www.your-domain.example/api/v1/email/webhook/resend`.
-   This is the backend's built-in receiver, not a separate service you must write.
-   Subscribe to `email.sent`, `email.delivered`, `email.delivery_delayed`,
-   `email.bounced`, `email.complained`, `email.failed` and `email.suppressed`.
-   Resend's webhook detail page supplies a signing secret beginning with `whsec_`.
-6. **Set two secrets in the server's private environment.** Create a Resend API key
-   with sending permission, restricted to the sending domain where available.
-   Put it in `RESEND_API_KEY`; put the webhook signing secret in
-   `RESEND_WEBHOOK_SECRET`. Use your hosting secret settings or the service manager's
-   private environment. Neither belongs in JSON, public JavaScript, version control,
-   chat messages or screenshots. These are separate secrets: one authorizes outgoing
-   requests, the other verifies incoming delivery reports.
-7. **Apply migrations, configure Resend, then restart.** Stop the previous backend,
-   back up the database, apply accounts and reservation migrations using the owner,
-   and apply the runtime grants below. Configure the following `customer_email`
-   object under `custom_config.accounts`, adapting the sender and footer:
+### Domain and Resend account
+
+1. Choose a public website origin, for example `https://www.your-domain.example`,
+   and a sending subdomain you own, for example `mail.your-domain.example`.
+   Replace these placeholders. Hosting must run the C++ backend on POSIX and provide
+   PostgreSQL; static hosting alone is insufficient.
+2. Add the sending subdomain in Resend and choose its sending region. Copy the
+   exact DKIM and SPF records Resend supplies: TXT and MX records, or CNAME records
+   where shown. Keep verification CNAMEs DNS-only. Wait for **Verified**, then
+   configure DMARC using Resend's guidance. Preserve existing website/mailbox
+   records; do not replace unrelated MX records or add a second SPF policy at the
+   same name. Values depend on your domain and region, so there is no universal
+   DNS snippet to copy. See [Resend domain setup](https://resend.com/docs/add-a-domain).
+3. Create an API key with `sending_access`, restricted to that verified domain.
+   Use a separate key for staging. Check the team's current sending quota and rate
+   limit before activation. See [API key permissions](https://resend.com/docs/api-reference/api-keys/create-api-key)
+   and [usage limits](https://resend.com/docs/api-reference/rate-limit).
+
+Use a sender such as `no-reply@mail.your-domain.example` at the exact verified
+sending domain. This application requires a bare ASCII address and lowercases it;
+`Studio <no-reply@...>` is not an accepted setting. Sending-domain verification
+does not create a reply mailbox. Keep provider click/open tracking disabled for
+account links; this is a Resend domain setting, not an application setting.
+See [Resend domain options](https://resend.com/docs/dashboard/domains/introduction).
+
+### Private environment and application settings
+
+Supply these variables to the **backend service process** through the hosting
+secret store or a protected service-manager environment file. The backend reads
+the process environment; it does not automatically load a `.env` file.
+
+| Environment variable | Required value |
+| --- | --- |
+| `ALOHA_DATABASE_URL` | Existing PostgreSQL connection string for the site's runtime role; this name matches the example's `database_url_env`. |
+| `RESEND_API_KEY` | The sending API key, copied unchanged. |
+| `RESEND_WEBHOOK_SECRET` | The endpoint's complete signing secret, including `whsec_`; do not Base64-decode it yourself. |
+
+Only variable **names** belong in JSON. Keep values out of public files, logs and
+command arguments; disable environment/body/Authorization-header dumps in the
+service/proxy. `GET /api/v1/auth/options` exposes selected presentation fields,
+feature flags and transport only. Delivery status omits secrets/message bodies;
+secret-loading errors identify the setting or variable name without its value.
+
+Merge this partial object into `custom_config.accounts` in the private deployment
+configuration. Retain `ui_root`, schema paths, session settings and unrelated
+configuration. Keep your existing registration/newsletter policy; `true` below
+matches the example.
 
 ```json
-"customer_email": {
+{
   "enabled": true,
-  "registration_enabled": true,
-  "newsletters_enabled": true,
-  "transport": "resend",
-  "sender": "no-reply@mail.your-domain.example",
-  "footer": "Your business name and contact details",
-  "resend": {
-    "api_key_env": "RESEND_API_KEY",
-    "webhook_secret_env": "RESEND_WEBHOOK_SECRET",
-    "request_seconds": 10
+  "database_url_env": "ALOHA_DATABASE_URL",
+  "public_origin": "https://www.your-domain.example",
+  "allow_insecure_loopback": false,
+  "customer_email": {
+    "enabled": true,
+    "registration_enabled": true,
+    "newsletters_enabled": true,
+    "transport": "resend",
+    "sender": "no-reply@mail.your-domain.example",
+    "footer": "Your business name and contact details",
+    "resend": {
+      "api_key_env": "RESEND_API_KEY",
+      "webhook_secret_env": "RESEND_WEBHOOK_SECRET",
+      "request_seconds": 10
+    }
   }
 }
 ```
 
-8. **Test one address you control.** Request registration or verification through
-   the website, follow the email link, then check **Email delivery** and Resend's
-   dashboard. Expect `accepted` followed by `delivered`; an accepted message alone
-   is not evidence of inbox arrival. If it stays accepted, inspect Resend's webhook
-   delivery attempts and the endpoint/proxy configuration. A browser GET at the
-   webhook URL returns 405; the endpoint accepts signed POST requests only.
+The origin has no path, trailing slash or explicit default `:443` port. The footer
+is required (1–500 characters), even when newsletters are disabled.
+`request_seconds` defaults to 10 and accepts integers 1–30. Omit `resend.test_port`:
+it is a loopback fixture option and is rejected for HTTPS origins. Real requests
+use `https://api.resend.com/emails` with certificate verification enabled.
+`outbox_directory` is unused by Resend; there is no automatic fallback to local
+delivery when a provider request fails.
 
-`127.0.0.1` means the machine making the request. Resend cannot reach your local
-computer using that address. Normal production delivery therefore requires an HTTPS
-public origin. A public website and a verified sending domain are both needed for
-working registration links; neither is needed for the automated local tests.
+### Webhook and HTTPS routing
 
-Resend provides the authoritative [domain verification instructions](https://resend.com/docs/dashboard/domains/introduction),
-[webhook setup](https://resend.com/docs/webhooks/introduction), and
-[webhook signing details](https://resend.com/docs/webhooks/verify-webhooks-requests).
-The implementation follows [Svix's signed payload format](https://docs.svix.com/receiving/verifying-payloads/how-manual),
-using the existing OpenSSL dependency. Provider quotas depend on your account;
-check [Resend usage limits](https://resend.com/docs/api-reference/rate-limit) before
-queueing a campaign.
+Register this exact endpoint in the same Resend team used for sending:
+
+```text
+https://www.your-domain.example/api/v1/email/webhook/resend
+```
+
+Select `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`,
+`email.complained`, `email.failed` and `email.suppressed`. Copy that webhook's
+signing secret into `RESEND_WEBHOOK_SECRET`; it is separate from the API key.
+Other event types are acknowledged and ignored. See
+[webhook setup](https://resend.com/docs/webhooks/introduction) and
+[event types](https://resend.com/docs/webhooks/event-types).
+
+Terminate TLS with a publicly trusted certificate at the host/reverse proxy. The
+backend can retain its loopback HTTP listener (the example uses
+`127.0.0.1:8082`), while `public_origin` remains the external HTTPS origin.
+Forward the canonical `Host` header exactly, including any nondefault port:
+rewriting it to the upstream address causes rejection. `X-Forwarded-Host` and
+`X-Forwarded-Proto` do not replace this check or configure the origin.
+
+Route the website, account pages and `/api/v1/*` to the correct backend. The webhook
+must reach its POST handler without redirects, browser login, proxy Basic Auth or
+a browser challenge. Preserve `svix-id`, `svix-timestamp`, `svix-signature` and
+the exact request-body bytes; JSON rewriting breaks signatures.
+[Resend signature requirements](https://resend.com/docs/webhooks/verify-webhooks-requests)
+match the existing receiver. Synchronize the backend host clock: signatures outside
+a five-minute timestamp tolerance are rejected. Allow outbound DNS and HTTPS to
+`api.resend.com`; keep the upstream HTTP port private.
+
+Keep deployment configuration, secret files, uploads and the local outbox outside
+the served document root and proxy aliases. Do not log message bodies or capability
+tokens; exclude the one-click unsubscribe query from access logs.
+
+### Activate and verify one real message
+
+1. **Prepare.** Use `Build/WebSiteBackend --config=PATH` with the private deployment
+   file, Accounts schema version 4 and its [runtime grants](#schema-upgrade-and-runtime-grants).
+   Switching transports requires no migration. Configuration paths are relative
+   to that file. `Scripts/run.sh` / `accounts_dev.py` is the local demo launcher;
+   the public-only binary has no mail worker.
+2. **Review the queue before switching.** Use a separate staging database containing
+   only addresses you control, or inspect the existing queue before live activation.
+   Unattempted eligible jobs will use Resend after the switch; previously attempted
+   local jobs remain pinned to their old transport and are skipped. Starting the
+   worker is not a dry run. Stop the old service, supply the environment/configuration,
+   restart, and enable the Resend webhook. Instances sharing a database must use
+   matching settings/secrets.
+3. **Confirm the active configuration.** Open `/api/v1/auth/options` and check
+   `"email": true` and `"transport": "resend"`. Sign in as an administrator at
+   `/admin?lang=en`, open **Email delivery**, and check the worker heartbeat,
+   error and pause status. The panel uses authenticated
+   `GET /api/v1/admin/mail`; operators/customers cannot view it. The webhook route
+   exists only with enabled Resend delivery. A browser GET returns 405 and an
+   unsigned POST returns 400; neither proves that a signed callback works.
+4. **Request exactly one message to a mailbox you control.** For an existing
+   unverified account, sign in at `/profile?lang=en` and request email verification.
+   Alternatively, when registration is enabled, submit an unused controlled
+   address at `/email?action=register&lang=en`. A generic accepted request alone
+   does not prove a job was queued. Avoid repeated submissions and campaigns.
+5. **Check delivery and the link.** Refresh Email delivery and identify the new job
+   by recipient/time. Match its `providerId` to Resend. Expect `accepted`, then
+   `delivered` (a fast callback can hide the intermediate state). Check actual inbox
+   arrival and From address separately, inspecting spam if absent. Complete the
+   verification link within 20 minutes. Mail-server acceptance does not establish
+   inbox placement.
+6. **Confirm callback reconciliation.** In Resend's webhook attempts, locate
+   `email.delivered` for that provider ID and confirm HTTP 200 from this endpoint.
+   Refresh the panel: its matching `delivered` state is read from PostgreSQL.
+   Optionally inspect event metadata with the query below. Replay the same successful
+   event from Resend: expect 200, unchanged job state/attempts and no extra message.
+   The same `svix-id` remains one stored event; replay does not resend the email.
+   [Resend replay instructions](https://resend.com/docs/webhooks/introduction).
+7. **Check failure/retry visibility separately.** The local checks below cover
+   timeouts, 429/503, permanent rejection, suppression and lost acknowledgments.
+   For an optional hosting-level check, use an isolated staging service/database:
+   block only its outbound Resend connection, request one verification message to
+   a controlled address, and observe `queued`, increased `attempts`, a connection/
+   timeout error and later `availableAt`. Restore egress before expiry/five attempts;
+   wait for automatic delivery of the same job and confirm its inbox/callback result.
+   This sends one additional real message. Do not edit jobs/keys, corrupt live
+   credentials or generate customer bounces/complaints.
+
+For optional database confirmation, replace `123` with the job ID recorded above
+and run this read-only query using your existing private database access. It omits
+message bodies, recipients, secret values and retry keys:
+
+```sql
+SELECT j.id, j.transport, j.state, j.attempts, j.provider_id,
+       e.event_id, e.event_type, e.occurred_at
+FROM accounts.mail_jobs AS j
+LEFT JOIN accounts.mail_events AS e ON e.provider_id = j.provider_id
+WHERE j.id = 123
+ORDER BY e.occurred_at, e.event_id;
+```
+
+If delivery stays `accepted`, inspect webhook attempts first: 400 can mean the
+wrong Host/secret, altered body, clock skew or invalid event data; 404/405 suggests
+route/method/configuration trouble; 503 requires checking backend/database
+availability. A provider 401/403 becomes `failed` with `provider_configuration`
+and a five-minute provider pause. Transient failures expose their category,
+attempt count and next availability; 429/5xx also pause provider requests.
+Permanent/exhausted failures remain visible under the **failed** filter. After
+resolving them, request a fresh account link; there is no manual retry button.
+Do not clear local suppressions merely to make a test pass. See
+[operational behavior](#delivery-status-and-operational-behavior) and
+[queue limits](#durable-queue-and-limits).
+
+Recommended local verification, when execution is approved:
+
+```sh
+bash Scripts/build.sh
+bash Scripts/build.sh --public-only
+bash Scripts/test.sh --no-build
+```
+
+These use an isolated database and fake provider; no real mail is sent. Record
+live job/provider/event IDs, webhook HTTP result, inbox result and any separate
+retry result as deployment evidence, excluding links/secrets. This guide does not
+claim those deployment steps have been run.
 
 ## Delivery status and operational behavior
 
