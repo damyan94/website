@@ -290,10 +290,21 @@ a delivery.
 event SQL, suppression records, worker status and delivery-status read projections.
 It maps rows without owning transactions, reconnects or delivery decisions. The
 delivery service commits a claim and its exact payload/key before transport I/O,
-then reconciles the result in a separate transaction. Callback validation and
-event-state interpretation remain in their existing callers, including the shared
-provider lock. Account challenge and campaign workflows retain their own persistence
-for this stage.
+then reconciles the result in a separate transaction.
+
+`EmailController` owns webhook host/signature checks, strict JSON and event-field
+parsing, delivery-status filters and response construction. It reuses the Accounts
+response handling for headers, cookies and errors. The status route keeps its
+existing Accounts authentication and administrator check before filter validation;
+its reads remain inside that authenticated transaction.
+
+`EmailStatusService` borrows the Accounts worker's connection for status reads and
+callback processing. It owns the callback transaction, including provider locking,
+event insertion, replay/conflict checks and reconciliation through the unchanged
+`ApplyEmailEvents` helper. Conflicting event IDs leave the transaction uncommitted
+and produce the existing HTTP error in the controller. The controller owns no
+transactions; `AccountStore` retains a forwarding entry point for worker access.
+Account challenge and campaign workflows retain their own persistence for this stage.
 
 Campaign preview stores a draft with an idempotency key bound to its author and
 content. Queueing checks the displayed recipient count again; a changed count

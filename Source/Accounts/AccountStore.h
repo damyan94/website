@@ -19,8 +19,11 @@ public:
 				 const UserListQuery& users = {});
 	void  Bootstrap(const std::string& email, const std::string& password);
 	void  ResetPassword(const std::string& email, const std::string& password);
-	// Only the signature-verified provider handler may call this entry point.
-	Reply ReceiveEmailEvent(const std::string& eventId, const Json::Value& body);
+	// Only the provider controller may call this after signature and payload validation.
+	bool ReceiveEmailEvent(const std::string& eventId,
+						   const std::string& type,
+						   const std::string& providerId,
+						   const std::string& occurred);
 	Reply RunDatabaseOperation(const std::string&		token,
 							   const std::string&		csrf,
 							   bool						mutation,

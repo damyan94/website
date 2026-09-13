@@ -20,15 +20,6 @@ void Headers(const drogon::HttpResponsePtr& response)
 						"object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
 }
 
-Reply Error(int status, const char* message)
-{
-	Reply reply;
-	reply.status		= status;
-	reply.body["error"] = message;
-	reply.clearCookie	= status == 401;
-	return reply;
-}
-
 UserListQuery UsersQuery(const drogon::HttpRequestPtr& request)
 {
 	UserListQuery query;
@@ -59,6 +50,15 @@ UserListQuery UsersQuery(const drogon::HttpRequestPtr& request)
 	return query;
 }
 } // namespace
+
+Reply Controller::Error(int status, const char* message)
+{
+	Reply reply;
+	reply.status		= status;
+	reply.body["error"] = message;
+	reply.clearCookie	= status == 401;
+	return reply;
+}
 
 Controller::Controller(const Configuration& configuration)
 	: m_Configuration(configuration)
@@ -281,65 +281,6 @@ void Controller::Execute(AccountStore& store, const PendingRequest& request, con
 	catch (const std::exception&)
 	{
 		Respond(callback, Error(500, "Account operation failed"));
-	}
-}
-
-void Controller::DispatchWebhook(const drogon::HttpRequestPtr& request, Callback callback, const SubmitJob& submit)
-{
-	try
-	{
-		const auto& id = request->getHeader("svix-id");
-		if (request->getHeader("host") != m_Configuration.authority ||
-			!VerifyEmailWebhook(m_Configuration.store.email.webhookKey,
-								id,
-								request->getHeader("svix-timestamp"),
-								request->getHeader("svix-signature"),
-								request->body()))
-			throw RequestError(400, "Invalid email webhook");
-		Json::CharReaderBuilder builder;
-		builder["collectComments"]	   = false;
-		builder["allowComments"]	   = false;
-		builder["allowTrailingCommas"] = false;
-		builder["rejectDupKeys"]	   = true;
-		builder["failIfExtra"]		   = true;
-		builder["stackLimit"]		   = 8;
-		std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-		Json::Value						  body;
-		std::string						  errors;
-		const auto						  bytes = request->body();
-		if (!reader->parse(bytes.data(), bytes.data() + bytes.size(), &body, &errors) || !body.isObject())
-			throw RequestError(400, "Invalid email webhook");
-		submit(
-			[this, id, body = std::move(body), callback](AccountStore& store)
-			{
-				try
-				{
-					Respond(callback, store.ReceiveEmailEvent(id, body));
-				}
-				catch (const RequestError& error)
-				{
-					Respond(callback, Error(error.status, error.what()));
-				}
-				catch (const DatabaseError& error)
-				{
-					Respond(callback,
-								  error.sqlState.starts_with("22")
-									  ? Error(400, "Invalid email event")
-									  : Error(503, "Email event temporarily unavailable"));
-				}
-				catch (const std::exception&)
-				{
-					Respond(callback, Error(503, "Email event temporarily unavailable"));
-				}
-			});
-	}
-	catch (const RequestError& error)
-	{
-		Respond(callback, Error(error.status, error.what()));
-	}
-	catch (const std::exception&)
-	{
-		Respond(callback, Error(400, "Invalid email webhook"));
 	}
 }
 

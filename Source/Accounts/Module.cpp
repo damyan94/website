@@ -13,7 +13,8 @@ Module::Module(const Json::Value&			settings,
 			   const std::filesystem::path& configDirectory,
 			   const std::filesystem::path& publicRoot)
 	: m_Configuration(settings, listeners, configDirectory, publicRoot),
-	  m_Controller(m_Configuration)
+	  m_Controller(m_Configuration),
+	  m_EmailController(m_Configuration, m_Controller)
 {
 }
 
@@ -198,7 +199,7 @@ void Module::RegisterEmailDeliveryHandlers()
 		[transport = m_Configuration.store.email.transport](Database& database, const Identity&, const Json::Value& query)
 		{
 			Reply reply;
-			reply.body = EmailDeliveryStatus(database, query, transport);
+			reply.body = EmailController::DeliveryStatus(database, query, transport);
 			return reply;
 		});
 	if (m_Configuration.store.email.transport != "resend")
@@ -208,7 +209,7 @@ void Module::RegisterEmailDeliveryHandlers()
 		"/api/v1/email/webhook/resend",
 		[self](const drogon::HttpRequestPtr& request, Callback&& callback)
 		{
-			self->m_Controller.DispatchWebhook(
+			self->m_EmailController.DispatchWebhook(
 				request,
 				std::move(callback),
 				[self](Job job)

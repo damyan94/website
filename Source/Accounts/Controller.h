@@ -28,7 +28,8 @@ public:
 						 std::size_t				   maximumBodyBytes	 = 8192,
 						 bool						   oneClick			 = false,
 						 DatabaseOperation			   databaseOperation = {});
-	void DispatchWebhook(const drogon::HttpRequestPtr& request, Callback callback, const SubmitJob& submit);
+	void Respond(const Callback& callback, Reply reply) const;
+	static Reply Error(int status, const char* message);
 	static void RespondWithAsset(const std::string& data, const std::string& type, const Callback& callback);
 
 private:
@@ -61,7 +62,6 @@ private:
 									 const Json::Value&			   body,
 									 const std::string&			   token);
 	void Execute(AccountStore& store, const PendingRequest& request, const Callback& callback) const;
-	void Respond(const Callback& callback, Reply reply) const;
 	bool AllowPasswordWork(const std::string& peer, const std::string& identity);
 
 	// Module owns the configuration and joins its workers before destroying the controller.

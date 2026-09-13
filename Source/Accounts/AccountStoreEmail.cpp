@@ -1,5 +1,5 @@
 #include "AccountStore.h"
-#include "MailRepository.h"
+#include "EmailStatusService.h"
 #include "Crypto.h"
 #include "InputValidation.h"
 #include "stdafx.h"
@@ -407,81 +407,13 @@ Reply AccountStore::AccountEmail(Action action, const Json::Value& body, const J
 	return SendCampaign(body, id);
 }
 
-Reply AccountStore::ReceiveEmailEvent(const std::string& eventId, const Json::Value& body)
+bool AccountStore::ReceiveEmailEvent(const std::string& eventId,
+									const std::string& type,
+									const std::string& providerId,
+									const std::string& occurred)
 {
-	if (!m_Settings.email.enabled || m_Settings.email.transport != "resend")
-		throw RequestError(404, "Email delivery is disabled");
-	const auto type = Text(body, "type", 64);
-	Reply	   reply;
-	if (type != "email.sent" && type != "email.delivered" && type != "email.delivery_delayed" &&
-		type != "email.bounced" && type != "email.complained" && type != "email.failed" && type != "email.suppressed")
-		return reply;
-	const auto providerId = Text(body["data"], "email_id", 128);
-	const auto occurred	  = Text(body, "created_at", 40);
-	if (!std::regex_match(providerId, std::regex("[A-Za-z0-9_-]{1,128}")) ||
-		!std::regex_match(
-			occurred,
-			std::regex(
-				R"(^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$)")))
-		throw RequestError(400, "Invalid email event");
-	m_Database.ReconnectIfNeeded();
-	Transaction transaction(m_Database);
-	MailRepository repository(m_Database);
-	repository.LockProvider(providerId);
-	repository.InsertProviderEvent(eventId, providerId, type, occurred);
-	const auto stored = repository.FindProviderEvent(eventId);
-	if (stored.providerId != providerId || stored.type != type)
-		throw RequestError(400, "Conflicting email event");
-	ApplyEmailEvents(m_Database, providerId);
-	transaction.Commit();
-	return reply;
-}
-
-Json::Value EmailDeliveryStatus(Database& database, const Json::Value& query, const std::string& transport)
-{
-	for (const auto& key : query.getMemberNames())
-		if (key != "before" && key != "state")
-			throw RequestError(400, "Unknown email filter");
-	const auto before = query.isMember("before") ? Number(query, "before") : "";
-	const auto state  = query.isMember("state") ? Text(query, "state", 20) : "";
-	if (!state.empty() && state != "queued" && state != "processing" && state != "accepted" && state != "delivered" &&
-		state != "delayed" && state != "bounced" && state != "complained" && state != "skipped" && state != "failed")
-		throw RequestError(400, "Invalid email state");
-	MailRepository repository(database);
-	Json::Value result;
-	result["transport"] = transport;
-	result["counts"]	= Json::objectValue;
-	const auto totals	= repository.StateCounts();
-	for (const auto& total : totals)
-		result["counts"][total.state] = total.count;
-	const auto worker = repository.WorkerStatus();
-	result["worker"]["heartbeatAt"] = worker.heartbeatAt;
-	result["worker"]["healthy"]		= worker.healthy;
-	result["worker"]["error"]		= worker.error;
-	result["worker"]["paused"]		= transport == "resend" && worker.paused;
-	result["worker"]["pauseUntil"]	= worker.pauseUntil;
-	result["jobs"]					= Json::arrayValue;
-	const auto jobs					= repository.ListJobsBefore(before, state);
-	for (std::size_t i = 0; i < std::min(jobs.size(), std::size_t{50}); ++i)
-	{
-		const auto& job = jobs[i];
-		Json::Value item;
-		item["id"]			= job.id;
-		item["kind"]		= job.kind;
-		item["recipient"]	= job.recipient;
-		item["subject"]		= job.subject;
-		item["state"]		= job.state;
-		item["attempts"]	= job.attempts;
-		item["transport"]	= job.transport;
-		item["error"]		= job.error;
-		item["statusCode"]	= job.statusCode;
-		item["providerId"]	= job.providerId;
-		item["createdAt"]	= job.createdAt;
-		item["availableAt"] = job.availableAt;
-		result["jobs"].append(item);
-	}
-	result["nextBefore"] = jobs.size() > 50 ? jobs[49].id : "";
-	return result;
+	EmailStatusService service(m_Database);
+	return service.ReceiveEvent(eventId, type, providerId, occurred);
 }
 
 Reply AccountStore::ListCampaigns()

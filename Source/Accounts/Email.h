@@ -50,7 +50,6 @@ bool		VerifyEmailWebhook(const std::string& key,
 							   std::string_view	  body);
 // Caller owns a transaction. Events can arrive before the sending request completes.
 void		ApplyEmailEvents(Database& database, const std::string& providerId);
-Json::Value EmailDeliveryStatus(Database& database, const Json::Value& query, const std::string& transport);
 
 // Claims commit before transport I/O. External retries retain their exact payload and key.
 class EmailWorker

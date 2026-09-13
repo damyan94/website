@@ -3,6 +3,7 @@
 #include "AccountStore.h"
 #include "Configuration.h"
 #include "Controller.h"
+#include "EmailController.h"
 #include <condition_variable>
 #include <deque>
 #include <drogon/HttpRequest.h>
@@ -68,6 +69,7 @@ private:
 
 	Configuration				 m_Configuration;
 	Controller					 m_Controller;
+	EmailController				 m_EmailController;
 	std::unique_ptr<EmailWorker> m_EmailWorker;
 	ScheduledEmailHooks			 m_EmailHooks;
 	std::mutex					 m_Mutex;
